@@ -1,0 +1,6 @@
+matplotlib>=2.0
+numpy>=1.12
+nltk>=3.2
+https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.1.0-cp34-cp34m-linux_x86_64.whl
+scipy
+sklearn
