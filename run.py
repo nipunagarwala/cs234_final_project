@@ -16,6 +16,8 @@ import time
 
 
 
+def main(args):
+
 
 
 
@@ -25,5 +27,5 @@ import time
 
 if __name__ == '__main__':
 	print("HEY!")
-	# args = parse_commandline()
-	# main(args)
+	args = parse_commandline()
+	main(args)
