@@ -27,7 +27,7 @@ class Config():
 			self.config.num_features = num_features
 			self.config.num_classes = num_encodings+1
 
-			self.inputs_placeholder = tf.placeholder(tf.float32, shape=(None, None, num_features))
+			self.inputs_placeholder = tf.placeholder(tf.float32, shape=(None, self.config.num_features))
 			self.targets_placeholder = tf.placeholder(tf.int32, shape=(None,))
 			self.seq_lens_placeholder = tf.placeholder(tf.int32, shape=(None))
 			if cell_type == 'rnn':

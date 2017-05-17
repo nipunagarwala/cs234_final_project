@@ -12,13 +12,17 @@ import time
 
 
 
+def train_model(args):
+	
 
 
 
 
 def main(args):
-
-
+	if args.phase == 'train':
+		train_model(args)
+	elif args.phase == 'test':
+		test_model(args)
 
 
 
