@@ -35,6 +35,8 @@ def parse_commandline():
     labels and sequence lengths. Each list contains batches of size
     batch_size corresponding
     to video frames, labels or sequence lengths, depending on the list.
+    Each time make_batches is called, the dataset
+    sent as input is shuffled and new batches are created.
 
 '''
 def make_batches():
