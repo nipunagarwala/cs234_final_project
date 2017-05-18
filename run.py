@@ -7,13 +7,13 @@ import math
 import random
 import tensorflow as tf
 import time
-# from utils import *
+from utils import *
 
 
 
 
 def train_model(args):
-	
+
 
 
 
