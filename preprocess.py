@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
     parser.add_argument("corpus_path", type=str, help="Path to corpus")
     args = parser.parse_args()
-    path = args.corpus_path)
+    path = args.corpus_path
     
     #path = "MOT17_FRCNN/"
     images = process_mot(path)
