@@ -5,6 +5,12 @@ from scipy import misc, ndimage
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
+LARGE_IMAGE_SIZE = (1080,1920,3)
+LARGE_IMAGE_RESCALE = 0.25
+MEDIUM_IMAGE_SIZE = (480,640,3)
+MEDIUM_IMAGE_RESCALE = 0.5
+FINAL_IMAGE_SIZE = (270,480)
+
 def process_mot(path):
     '''
     1920 x 1080 -> 480 x 270
@@ -16,10 +22,10 @@ def process_mot(path):
             if filename[-4:] == ".jpg" and "_ds" not in filename:
                 full_path = os.path.join(dirpath, filename)
                 img = misc.imread(full_path,mode='RGB')
-                if img.shape == (1080,1920,3):
-                    img = misc.imresize(img, size=0.25)
-                elif img.shape == (480,640,3):
-                    img = misc.imresize(img, size=0.5)
+                if img.shape == LARGE_IMAGE_SIZE:
+                    img = misc.imresize(img, size=LARGE_IMAGE_RESCALE)
+                elif img.shape == MEDIUM_IMAGE_SIZE:
+                    img = misc.imresize(img, size=MEDIUM_IMAGE_RESCALE)
                     img = pad_image(img)
                 else:
                     print("Unexpected shape " + str(img.shape))
@@ -50,21 +56,16 @@ def training_set_mean_stdev(images):
     return mean, stdev    
     
 def normalize_training_set(images, mean, stdev):
-    channel0 = np.ones((270, 480)) * mean[0]
-    channel1 = np.ones((270, 480)) * mean[1]
-    channel2 = np.ones((270, 480)) * mean[2]
+    channel0 = np.ones(FINAL_IMAGE_SIZE) * mean[0]
+    channel1 = np.ones(FINAL_IMAGE_SIZE) * mean[1]
+    channel2 = np.ones(FINAL_IMAGE_SIZE) * mean[2]
     mean_pixel = np.asarray([channel0, channel1, channel2]).transpose(1,2,0).astype('int8')
     print mean_pixel.shape
     for img_path in images:
         img = misc.imread(img_path).astype('int8')
-        #plt.imshow(img, interpolation='none')
-        #plt.show()
         img -= mean_pixel
         output_filename = img_path[:-4] + "_norm"
         np.save(output_filename, img, allow_pickle=False)
-        #print img        
-        #plt.imshow(img, interpolation='none')
-        #plt.show()
 
 def preprocess_labels(path):
     for dirpath, dirnames, filenames in os.walk(path):
@@ -81,12 +82,12 @@ def preprocess_labels(path):
                     of.write(frame_to_labels[frame])
 
 if __name__ == "__main__":
-    #parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
-    #parser.add_argument("corpus_path", type=str, help="Path to corpus")
-    #args = parser.parse_args()
-    #path = args.corpus_path)
+    parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
+    parser.add_argument("corpus_path", type=str, help="Path to corpus")
+    args = parser.parse_args()
+    path = args.corpus_path)
     
-    path = "MOT17_FRCNN/"
+    #path = "MOT17_FRCNN/"
     images = process_mot(path)
     mean, stdev = training_set_mean_stdev(images)
     normalize_training_set(images, mean, stdev)
