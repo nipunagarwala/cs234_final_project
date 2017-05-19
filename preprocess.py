@@ -6,14 +6,15 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 LARGE_IMAGE_SIZE = (1080,1920,3)
-LARGE_IMAGE_RESCALE = 0.25
+LARGE_IMAGE_RESCALE = 0.2
 MEDIUM_IMAGE_SIZE = (480,640,3)
 MEDIUM_IMAGE_RESCALE = 0.5
-FINAL_IMAGE_SIZE = (270,480)
+FINAL_IMAGE_SIZE = (240,384)
+FINAL_IMAGE_DIM = (240, 384, 3)
 
 def process_mot(path):
     '''
-    1920 x 1080 -> 480 x 270
+    1920 x 1080 -> 384 x 216
     640 x 480 -> 320 x 240
     '''
     images = []
@@ -24,9 +25,10 @@ def process_mot(path):
                 img = misc.imread(full_path,mode='RGB')
                 if img.shape == LARGE_IMAGE_SIZE:
                     img = misc.imresize(img, size=LARGE_IMAGE_RESCALE)
+                    img = pad_image(img, FINAL_IMAGE_SIZE)
                 elif img.shape == MEDIUM_IMAGE_SIZE:
                     img = misc.imresize(img, size=MEDIUM_IMAGE_RESCALE)
-                    img = pad_image(img)
+                    img = pad_image(img, FINAL_IMAGE_SIZE)
                 else:
                     print("Unexpected shape " + str(img.shape))
                     continue
@@ -35,16 +37,16 @@ def process_mot(path):
                 images.append(output_filename)
     return images
                 
-def pad_image(img):
+def pad_image(img, pad_size):
     img = img.transpose(2,0,1)
-    diff0 = (270 - 240) / 2
-    diff1 = (480 - 320) / 2
+    diff0 = (pad_size[0] - img.shape[1]) / 2
+    diff1 = (pad_size[1] - img.shape[2]) / 2
     img = np.asarray([np.pad(x, ((diff0,), (diff1,)), 'constant', constant_values=(np.median(x) ,)) for x in img])
     return img.transpose(1,2,0)
 
 def training_set_mean_stdev(images):
-    average_img = np.zeros((270, 480, 3))
-    average_sq_img = np.zeros((270, 480, 3))
+    average_img = np.zeros(FINAL_IMAGE_DIM)
+    average_sq_img = np.zeros(FINAL_IMAGE_DIM)
     num_images = float(len(images))
     for img_path in images:
         img = misc.imread(img_path)
@@ -60,7 +62,7 @@ def normalize_training_set(images, mean, stdev):
     channel1 = np.ones(FINAL_IMAGE_SIZE) * mean[1]
     channel2 = np.ones(FINAL_IMAGE_SIZE) * mean[2]
     mean_pixel = np.asarray([channel0, channel1, channel2]).transpose(1,2,0).astype('int8')
-    print mean_pixel.shape
+    #print mean_pixel.shape
     for img_path in images:
         img = misc.imread(img_path).astype('int8')
         img -= mean_pixel
@@ -87,7 +89,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     path = args.corpus_path
     
-    #path = "MOT17_FRCNN/"
     images = process_mot(path)
     mean, stdev = training_set_mean_stdev(images)
     normalize_training_set(images, mean, stdev)
