@@ -76,7 +76,7 @@ def load_dataset(dataset_path):
                 data.append(curr_seq)
                 labels.append(curr_labels)
                 seq_lens.append(seq_len)
-    return (data, labels, seq_lens)
+    return (np.asarray(data), np.asarray(labels), np.asarray(seq_lens))
 
 if __name__ == "__main__":
     path = "data_dev/train/"
