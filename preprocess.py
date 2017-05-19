@@ -45,6 +45,7 @@ def training_set_mean_stdev(images):
         average_img += img / num_images
         average_sq_img += np.asarray([np.square(x) for x in average_img.transpose(2,0,1)]).transpose(1,2,0) / num_images
     mean = np.asarray([np.mean(x) for x in average_img.transpose(2,0,1)])
+    # stdev = np.asarray([np.mean(x) for x in average_sq_img.transpose(2,0,1)]) - np.square(mean)
     stdev = np.asarray([0, 0, 0])
     return mean, stdev    
     
@@ -52,16 +53,20 @@ def normalize_training_set(images, mean, stdev):
     channel0 = np.ones((270, 480)) * mean[0]
     channel1 = np.ones((270, 480)) * mean[1]
     channel2 = np.ones((270, 480)) * mean[2]
-    mean_pixel = np.asarray([channel0, channel1, channel2]).transpose(1,2,0)
+    mean_pixel = np.asarray([channel0, channel1, channel2]).transpose(1,2,0).astype('int8')
     print mean_pixel.shape
     for img_path in images:
-        img = misc.imread(img_path).astype('float64')
+        img = misc.imread(img_path).astype('int8')
+        #plt.imshow(img, interpolation='none')
+        #plt.show()
         img -= mean_pixel
         output_filename = img_path[:-4] + "_norm"
         np.save(output_filename, img, allow_pickle=False)
+        #print img        
+        #plt.imshow(img, interpolation='none')
+        #plt.show()
 
 def preprocess_labels(path):
-    
     for dirpath, dirnames, filenames in os.walk(path):
         for filename in filenames:
             frame_to_labels = defaultdict(str)
