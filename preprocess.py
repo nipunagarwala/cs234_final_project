@@ -86,7 +86,7 @@ if __name__ == "__main__":
     #args = parser.parse_args()
     #path = args.corpus_path)
     
-    path = "MOT17/"
+    path = "MOT17_FRCNN/"
     images = process_mot(path)
     mean, stdev = training_set_mean_stdev(images)
     normalize_training_set(images, mean, stdev)

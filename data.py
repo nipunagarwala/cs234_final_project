@@ -65,5 +65,5 @@ if __name__ == "__main__":
     #args = parser.parse_args()
     #process_mot(args.corpus_path)
     
-    construct_train_sequences("MOT17")
+    construct_train_sequences("MOT17_FRCNN")
     #construct_test_sequences("MOT17_dev")

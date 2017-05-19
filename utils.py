@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import os
 import argparse
-
+import cPickle as pickle
 
 
 def parse_commandline():
@@ -39,16 +39,47 @@ def parse_commandline():
     sent as input is shuffled and new batches are created.
 
 '''
-def make_batches():
+def make_batches(dataset, batch_size=32):
+    orig_data, orig_labels, orig_seq_lens = dataset
 
+    indices = np.random.permutation(len(orig_data))
+    data = orig_data[indices]
+    labels = orig_labels[indices]
+    seq_lens = orig_seq_lens[indices]
+    
+    batched_data = []
+    batched_labels = []
+    batched_seq_lens = []
+    num_batches = int(np.ceil(len(data) / float(batch_size)))
+    
+    for i in range(num_batches):
+        batch_start = i * batch_size
+        batched_data.append(data[batch_start : batch_start + batch_size])
+        batched_labels.append(labels[batch_start : batch_start + batch_size])
+        batched_seq_lens.append(seq_lens[batch_start : batch_start + batch_size])
+    
+    return batched_data, batched_labels, batched_seq_lens
 
 '''
     Reads in the videos and corresponding labels into memory and
     returns them respectively.
 
 '''
-def load_dataset():
+def load_dataset(dataset_path):
+    data = []
+    labels = []
+    seq_lens = []
+    for dirpath, dirnames, filenames in os.walk(path):
+        for filename in filenames:
+            with open(os.path.join(dirpath, filename), 'rb') as f:
+                curr_seq, curr_labels, seq_len = pickle.load(f)
+                data.append(curr_seq)
+                labels.append(curr_labels)
+                seq_lens.append(seq_len)
+    return (data, labels, seq_lens)
 
-
-
+if __name__ == "__main__":
+    path = "data_dev/train/"
+    dataset = load_dataset(path)
+    batched_data, batched_labels, batched_seq_lens = make_batches(dataset)
 
