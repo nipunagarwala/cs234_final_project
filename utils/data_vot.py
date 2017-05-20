@@ -5,8 +5,8 @@ import argparse
 from collections import defaultdict
 import random
 
-def construct_sequences(path, seq_len=8):
-    train_output_dir = os.path.join('data', 'train')
+def construct_sequences(path, output_path, seq_len=8):
+    train_output_dir = os.path.join(output_path, 'data', 'train')
     if not os.path.exists(train_output_dir):
         os.makedirs(train_output_dir)
     construct_sequence(path, train_output_dir, seq_len)
@@ -48,7 +48,8 @@ def get_gt_labels(gt_filename):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
     parser.add_argument("corpus_path", type=str, help="Path to corpus")
+    parser.add_argument("output_path", type=str, help="output data directory")
     args = parser.parse_args()
-    construct_sequences(args.corpus_path)
+    construct_sequences(args.corpus_path, args.output_path)
 
     #construct_sequences("VOT/label_dev")
