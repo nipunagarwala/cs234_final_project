@@ -101,12 +101,15 @@ def preprocess_labels(path):
             if filename == "gt.txt":
                 seq_name = os.path.basename(os.path.dirname(dirpath))
                 seq_height, seq_width = video_sizes[seq_name]
+                scale = LARGE_IMAGE_RESCALE if seq_height == LARGE_IMAGE_SIZE[0] else MEDIUM_IMAGE_RESCALE
+                height_pad = ((FINAL_IMAGE_SIZE[0] - seq_height*scale) / 2) / FINAL_IMAGE_SIZE[0]
+                width_pad = ((FINAL_IMAGE_SIZE[1] - seq_width*scale) / 2) / FINAL_IMAGE_SIZE[1]
                 with open(os.path.join(dirpath, filename), "r") as f:
                     for line in f:
                         split_line = line.split(",")
                         left, top, width, height = map(float, split_line[2:6])
-                        norm_left = left / seq_width
-                        norm_top = top / seq_height
+                        norm_left = left / seq_width + width_pad
+                        norm_top = top / seq_height + height_pad
                         norm_width = width / seq_width
                         norm_height = height / seq_height
                         norm_dim = [norm_left, norm_top, norm_width, norm_height]
