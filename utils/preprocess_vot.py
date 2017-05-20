@@ -101,7 +101,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
     parser.add_argument("dataset_path", type=str, help="Path to dataset")
     args = parser.parse_args()
-    path = args.corpus_path
+    path = args.dataset_path
     
     video_sizes, min_height, min_width = get_sizes(path)
     images = process_vot(path, min_height, min_width)
