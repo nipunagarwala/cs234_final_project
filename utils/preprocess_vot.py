@@ -17,21 +17,28 @@ def get_sizes(path):
             shapes.add(img.shape)
             min_height = min(img.shape[0], min_height)
             min_width = min(img.shape[1], min_width)
-    return min_height, min_width
+    return shapes, min_height, min_width
 
 def process_vot(path, min_height, min_width):
     images = []
     for dirpath, dirnames, filenames in os.walk(path):
+        img_shape = None
+        pad_height = 0
+        pad_width = 0
         for filename in filenames:
             if filename[-4:] == ".jpg" and "_ds" not in filename:
                 full_path = os.path.join(dirpath, filename)
                 img = misc.imread(full_path,mode='RGB')
+                img_shape = img.shape
                 ratio = min(float(min_width)/img.shape[1], float(min_height)/img.shape[0])
                 img = misc.imresize(img, size=ratio)
-                img = pad_image(img, (min_height, min_width))
+                img, pad_height, pad_width = pad_image(img, (min_height, min_width))
                 output_filename = os.path.join(dirpath, filename[:-4] + "_ds.jpg")
                 misc.imsave(output_filename, img)
                 images.append(output_filename)
+        if img_shape:
+            gt_path = os.path.join(dirpath, "groundtruth.txt")
+            preprocess_label(gt_path, img_shape, min_height, min_width, pad_height, pad_width)
     return images
                 
 def pad_image(img, pad_size):
@@ -40,10 +47,8 @@ def pad_image(img, pad_size):
     diff1_before = (pad_size[1] - img.shape[2]) / 2
     diff0_after = int(math.ceil((pad_size[0] - img.shape[1]) / 2.0))
     diff1_after = int(math.ceil((pad_size[1] - img.shape[2]) / 2.0))
-    
-    print img.shape, pad_size, diff0_before, diff0_after, diff1_before, diff1_after
     img = np.asarray([np.pad(x, ((diff0_before,diff0_after), (diff1_before,diff1_after)), 'constant', constant_values=(np.median(x) ,)) for x in img])
-    return img.transpose(1,2,0)
+    return img.transpose(1,2,0), diff0_before, diff1_before
 
 def training_set_mean_stdev(images, dimensions):
     average_img = np.zeros(dimensions)
@@ -63,14 +68,25 @@ def normalize_training_set(images, mean, stdev, size):
     channel1 = np.ones(size) * mean[1]
     channel2 = np.ones(size) * mean[2]
     mean_pixel = np.asarray([channel0, channel1, channel2]).transpose(1,2,0).astype('int8')
-    #print mean_pixel.shape
     for img_path in images:
         img = misc.imread(img_path).astype('int8')
         img -= mean_pixel
         output_filename = img_path[:-4] + "_norm"
         np.save(output_filename, img, allow_pickle=False)
-        plt.imshow(img, interpolation='none')
-        plt.show()
+
+def preprocess_label(gt_path, orig_shape, height, width, offset_height, offset_width):
+    scale = [orig_shape[1], orig_shape[0]] * 4
+    offset = [offset_width/float(width), offset_height/float(height)] * 4
+    normalized_lines = ""
+    output_file = os.path.join(os.path.dirname(gt_path), "groundtruth_norm.txt")
+    with open(gt_path, "r") as f:
+        for line in f:
+            split_line = map(float, line.split(",")) 
+            normalized = map(lambda x,y: x/y, split_line, scale)
+            new_line = ",".join([format(x, "0.6f") for x in normalized]) + "\n"
+            normalized_lines += new_line
+    with open(output_file, "w") as of:
+        of.write(normalized_lines)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
@@ -78,7 +94,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     path = args.corpus_path
     
-    min_height, min_width = get_sizes(path)
+    video_sizes, min_height, min_width = get_sizes(path)
     images = process_vot(path, min_height, min_width)
     mean, stdev = training_set_mean_stdev(images, (min_height, min_width, 3))
     normalize_training_set(images, mean, stdev, (min_height, min_width))
