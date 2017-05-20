@@ -5,6 +5,7 @@ from scipy import misc, ndimage
 import matplotlib.pyplot as plt
 from collections import defaultdict
 import math
+from operator import add
 
 def get_sizes(path):
     shapes = set()
@@ -79,14 +80,22 @@ def preprocess_label(gt_path, orig_shape, height, width, offset_height, offset_w
     offset = [offset_width/float(width), offset_height/float(height)] * 4
     normalized_lines = ""
     output_file = os.path.join(os.path.dirname(gt_path), "groundtruth_norm.txt")
+    info_file = os.path.join(os.path.dirname(gt_path), "info.txt")
+    num_lines = 0
     with open(gt_path, "r") as f:
         for line in f:
             split_line = map(float, line.split(",")) 
-            normalized = map(lambda x,y: x/y, split_line, scale)
+            if len(split_line) != 8:
+                print gt_path
+                return
+            normalized = map(add, map(lambda x,y: x/y, split_line, scale), offset)
             new_line = ",".join([format(x, "0.6f") for x in normalized]) + "\n"
             normalized_lines += new_line
+            num_lines += 1
     with open(output_file, "w") as of:
         of.write(normalized_lines)
+    with open(info_file, "w") as info:
+        info.write("%s,%s,%s" % (num_lines, orig_shape[0], orig_shape[1]))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
