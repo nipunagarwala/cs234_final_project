@@ -1,33 +1,119 @@
-import numpy as np 
+import numpy as np
 import sys
 import os
 import argparse
 import cPickle as pickle
+from RecurrentCNN import *
+from VisualAttention import *
+
+# TODO: change according to data directories
+TRAIN_DATA = '/data/train_data/'
+TEST_DATA = '/data/test_data/'
+VALIDATION_DATA = '/data/validation_data/'
+SUMMARY_DIR = '/data/summary'
 
 
-def parse_commandline():
-    """
-    Parses the command line arguments to the run method for training and testing purposes
-    Inputs:
-        None
-    Returns:
-        args: An object with the command line arguments stored in the correct values.
-            phase : Train or Test
-            train_path : Path for the training data
-            val_path : Path for the testing data
-            save_every : (Int) How often to save the model
-            save_to_file : (string) Path to file to save the model too
-            load_from_file : (string) Path to load the model from
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--phase', default='train', choices=['train', 'test'])
-    parser.add_argument('--train_path', nargs='?', default='./data/hw3_train.dat', type=str, help="Give path to training data")
-    parser.add_argument('--val_path', nargs='?', default='./data/hw3_val.dat', type=str, help="Give path to val data")
-    parser.add_argument('--save_every', nargs='?', default=2, type=int, help="Save model every x iterations. Default is not saving at all.")
-    parser.add_argument('--save_to_file', nargs='?', default=os.getcwd()+ '/' + 'checkpoints/model_ckpt', type=str, help="Provide filename prefix for saving intermediate models")
-    parser.add_argument('--load_from_file', nargs='?', default=None, type=str, help="Provide filename to load saved model")
-    args = parser.parse_args()
-    return args
+################################# Logging ###################################
+
+
+def clear_summaries():
+    if tf.gfile.Exists(SUMMARY_DIR):
+        tf.gfile.DeleteRecursively(SUMMARY_DIR)
+    tf.gfile.MakeDirs(SUMMARY_DIR)
+
+
+def get_checkpoint(args, session, saver):
+	# Checkpoint
+	found_ckpt = False
+
+	if args.override:
+		if tf.gfile.Exists(args.ckpt_dir):
+			tf.gfile.DeleteRecursively(args.ckpt_dir)
+		tf.gfile.MakeDirs(args.ckpt_dir)
+
+	# check if args.ckpt_dir is a directory of checkpoints, or the checkpoint itself
+	if len(re.findall('model.ckpt-[0-9]+', args.ckpt_dir)) == 0:
+		ckpt = tf.train.get_checkpoint_state(args.ckpt_dir)
+		if ckpt and ckpt.model_checkpoint_path:
+			saver.restore(session, ckpt.model_checkpoint_path)
+			i_stopped = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
+			print "Found checkpoint for epoch ({0})".format(i_stopped)
+			found_ckpt = True
+		else:
+			print('No checkpoint file found!')
+			i_stopped = 0
+	else:
+		saver.restore(session, args.ckpt_dir)
+		i_stopped = int(args.ckpt_dir.split('/')[-1].split('-')[-1])
+		print "Found checkpoint for epoch ({0})".format(i_stopped)
+		found_ckpt = True
+
+
+	return i_stopped, found_ckpt
+
+
+def save_checkpoint(args, session, saver, i):
+	checkpoint_path = os.path.join(args.ckpt_dir, 'model.ckpt')
+	saver.save(session, checkpoint_path, global_step=i)
+	# saver.save(session, os.path.join(SUMMARY_DIR,'model.ckpt'), global_step=i)
+
+
+################################ Command Line #################################
+
+
+def parse_command_line():
+	desc = u'{0} [Args] [Options]\nDetailed options -h or --help'.format(__file__)
+	parser = ArgumentParser(description=desc)
+
+	print("Parsing Command Line Arguments...")
+	requiredModel = parser.add_argument_group('Required Model arguments')
+    # TODO: add other model names
+	requiredModel.add_argument('-m', choices = ["rnn_rcnn", "visual_attention"], type=str,
+						dest='model', required=True, help='Type of model to run')
+	requiredTrain = parser.add_argument_group('Required Train/Test arguments')
+	requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
+						dest='train', required=True, help='Training or Testing phase to be run')
+
+	parser.add_argument('-o', dest='override', action="store_true", help='Override the checkpoints')
+	parser.add_argument('-e', dest='num_epochs', default=10, type=int, help='Set the number of Epochs')
+	parser.add_argument('-ckpt', dest='ckpt_dir', default='/data/temp_ckpt/', type=str, help='Set the checkpoint directory')
+
+	args = parser.parse_args()
+	return args
+
+
+def choose_data(args):
+	if args.data_dir != '':
+        dataset_dir = args.data_dir
+    elif args.train == 'train':
+        dataset_dir = TRAIN_DATA
+    elif args.train == 'test':
+        dataset_dir = TEST_DATA
+    else: # args.train == 'dev'
+        dataset_dir = VALIDATION_DATA
+
+	print 'Using dataset {0}'.format(dataset_dir)
+    print "Reading in {0}-set filenames.".format(args.train)
+	return dataset_dir
+
+
+def choose_model(args): # pass in necessary model parameters (...)
+	is_training = args.train == 'train' # boolean that certain models may require
+
+	if args.model == 'rnn_rcnn':
+        pass
+        # model = Model(...)
+        # model.build_model(...)
+        # model.add_loss()
+        # etc
+        # model.metrics() ?
+    elif args.model == 'visual_attention':
+        pass
+    elif args.model == 'other':
+        pass
+
+	return model
+
 
 '''
     Given a list/array of video frames and labels, this shuffles the
@@ -46,19 +132,20 @@ def make_batches(dataset, batch_size=32):
     data = orig_data[indices]
     labels = orig_labels[indices]
     seq_lens = orig_seq_lens[indices]
-    
+
     batched_data = []
     batched_labels = []
     batched_seq_lens = []
     num_batches = int(np.ceil(len(data) / float(batch_size)))
-    
+
     for i in range(num_batches):
         batch_start = i * batch_size
         batched_data.append(data[batch_start : batch_start + batch_size])
         batched_labels.append(labels[batch_start : batch_start + batch_size])
         batched_seq_lens.append(seq_lens[batch_start : batch_start + batch_size])
-    
+
     return batched_data, batched_labels, batched_seq_lens
+
 
 '''
     Reads in the videos and corresponding labels into memory and
@@ -78,8 +165,8 @@ def load_dataset(dataset_path):
                 seq_lens.append(seq_len)
     return (np.asarray(data), np.asarray(labels), np.asarray(seq_lens))
 
+
 if __name__ == "__main__":
     path = "data_dev/train/"
     dataset = load_dataset(path)
     batched_data, batched_labels, batched_seq_lens = make_batches(dataset)
-
