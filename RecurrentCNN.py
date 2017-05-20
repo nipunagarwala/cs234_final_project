@@ -26,7 +26,7 @@ class RecurrentCNNConfig(Config):
 		self.variance = 1e-2
 
 
-class RecurrentCNN(Model)
+class RecurrentCNN(Model):
 
 	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len, reuse=False, add_bn=False,
 				add_reg=False, scope=None):
@@ -42,12 +42,12 @@ class RecurrentCNN(Model)
 		self.scope = scope
 		if add_bn:
 			self.norm_fn = tf.contrib.layers.batch_norm
-		else
+		else:
 			self.norm_fn = None
 
 		if add_reg:
 			self.reg_fn = tf.nn.l2_loss
-		else
+		else:
 			self.reg_fn = None
 
 		if cell_type == 'rnn':
@@ -182,7 +182,12 @@ class RecurrentCNN(Model)
 
 
 	def add_error_op(self):
-
+		# VOT metrics (MOT only makes sense for multiple object)
+ 		# Accuracy:
+		# intersection / union
+ 		# Robustness
+ 		# average count of number of resets (0 overlap in predicted and actual)
+     
 	def add_summary_op(self):
 		self.merged_summary_op = tf.summary.merge_all()
 

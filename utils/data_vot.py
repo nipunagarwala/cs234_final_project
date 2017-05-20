@@ -13,18 +13,18 @@ def construct_sequences(path, seq_len=8):
     
 def construct_sequence(input_path, output, seq_len):    
     for dirname in os.listdir(input_path):
+        gt_path = os.path.join(input_path, dirname, "groundtruth_norm.txt")
+        labels = get_gt_labels(gt_path)
         video_len = get_num_frames(os.path.join(input_path, dirname, "info.txt"))
+        
         for i in range(1, video_len + 1 - seq_len, seq_len):
             curr_seq = []
             curr_labels = []
-            
             for j in range(i, i+seq_len):
                 img_path = os.path.join(input_path, dirname, str(j).zfill(8) + "_ds_norm.npy")
                 img = np.load(img_path)
                 curr_seq.append(img)
-                gt_path = os.path.join(input_path, dirname, "groundtruth_norm.txt")
-                label = get_gt_labels(gt_path)
-                curr_labels.append(label)
+                curr_labels.append(labels[j-1])
             curr_dataset = (curr_seq, curr_labels, len(curr_seq))
             curr_output = os.path.join(output, dirname + "-" + str(i).zfill(8))
             with open(curr_output, "wb") as f:
@@ -40,16 +40,15 @@ def get_gt_labels(gt_filename):
     labels = []
     with open(gt_filename, "r") as f:
         for line in f:
-            split_line = line.strip().split(",")
-            values = map(float, split_line[1:-1])
-            values.append(float(split_line[-1]))
+            split_line = map(float, line.strip().split(","))
+            values = split_line[0:2] + split_line[-2:]
             labels.append(values)
     return labels
 
 if __name__ == "__main__":
-    #parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
-    #parser.add_argument("corpus_path", type=str, help="Path to corpus")
-    #args = parser.parse_args()
-    #construct_sequences(args.corpus_path)
+    parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
+    parser.add_argument("corpus_path", type=str, help="Path to corpus")
+    args = parser.parse_args()
+    construct_sequences(args.corpus_path)
 
-    construct_sequences("VOT/vot2017")
+    #construct_sequences("VOT/label_dev")
