@@ -3,6 +3,8 @@ import sys
 import os
 import argparse
 import cPickle as pickle
+from RecurrentCNN import *
+from VisualAttention import *
 
 # TODO: change according to data directories
 TRAIN_DATA = '/data/train_data/'

@@ -4,13 +4,13 @@
 
 import tensorflow as tf
 import numpy as np
-import models
 import utils
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import sys
+from RecurrentCNN import *
+from VisualAttention import *
 
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
 GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
 
@@ -56,10 +56,7 @@ def run_model(args):
 					label_batch = batched_labels[j]
 					seq_lens_batch = batched_seq_lens[j]
 
-                    # pack feed dict
-					# feed_dict = None
-
-                    summary, accuracy = model.run(args, session, feed_dict)
+                    summary, accuracy = model.run_one_batch(args, session, input_batch, target_batch, seq_batch)
                     file_writer.add_summary(summary, j)
 
                     # Record batch accuracies for test code
