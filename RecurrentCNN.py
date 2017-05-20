@@ -15,11 +15,15 @@ class RecurrentCNNConfig(Config):
 		self.hidden_size = 256
 		self.num_epochs = 50
 		self.num_layers = 3
-		self.num_classes = 28 #Can change depending on the dataset
+		self.num_classes = 4 # Mean vector of size 4
 		self.features_shape = (100,100,3) #TO FIX!!!!
-		self.targets_shape = (self.num_classes,4)
+		self.targets_shape = (self.num_classes,)
+		self.config.init_loc_size = (4,)
 		self.max_norm = 10
 		self.keep_prob = 0.8
+		self.init_state_out_size = 32
+		self.cnn_out_shape = 128
+		self.variance = 1e-2
 
 
 class RecurrentCNN(Model)
@@ -31,7 +35,8 @@ class RecurrentCNN(Model)
 		self.config.num_classes = num_encodings+1
 		self.reuse = reuse
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=(None,None,)+ self.config.features_shape )
-		self.targets_placeholder = tf.placeholder(tf.int32, shape=(None,) + self.targets_shape)
+		self.init_loc = tf.placeholder(tf.float32, shape=(None,)+ self.config.init_loc_size )
+		self.targets_placeholder = tf.placeholder(tf.int32, shape=(None,None) + self.targets_shape)
 		self.config.seq_len = seq_len
 
 		self.scope = scope
@@ -83,8 +88,18 @@ class RecurrentCNN(Model)
 							reuse = self.reuse, trainable=True)
 
 		max_pool2 = tf.contrib.layers.max_pool2d(inputs=conv_out4, kernel_size=[3,3],stride=[1,1],padding='SAME')
+		flatten_out = tf.contrib.layers.flatten(max_pool2)
 
-		cnn_out = max_pool2
+		fc1 = tf.contrib.layers.fully_connected(inputs=flatten_out, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = self.reuse,trainable=True)
+		fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = self.reuse,trainable=True)
+
+		cnn_out = fc2
 		return cnn_out
 
 	def build_rnn(self, rnn_inputs):
@@ -105,25 +120,59 @@ class RecurrentCNN(Model)
 
 		return rnn_out
 
+	def build_initial_state(self):
+		fc1 = tf.contrib.layers.fully_connected(inputs=self.init_loc, num_outputs=self.init_state_out_size,
+								activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = self.reuse,trainable=True)
+		fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.init_state_out_size, 
+								activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = self.reuse,trainable=True)
+
+		init_state_out = fc2
+		return init_state_out
+
+
+
 	def build_model(self):
 		self.cnn_scope = self.scope + '/CNN'
-		cnn_outputs = []
+		obs_outputs = []
 		with tf.variable_scope(self.cnn_scope):
 			for t in xrange(self.seq_len):
-				if t > 0:  tf.get_variable_scope().reuse_variables()
-				cnn_outputs.append(self.build_cnn(self.inputs_placeholder[t,:,:,:,:]))
+				st_state = tf.zeros(shape=(self.inputs_placeholder.get_shape()[0], self.config.init_state_out_size),
+									dtype=tf.float32)
+				if t == 0:
+					st_state = self.build_initial_state()
+				if t > 0: 
+					tf.get_variable_scope().reuse_variables()
+				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:]),st_state], axis=1)
+				obs_outputs.append(concat_result)
 
-		cnn_outputs = tf.stack(cnn_outputs, axis=1)
+		obs_outputs = tf.stack(cnn_outputs, axis=1)
 
 		self.rnn_scope = self.scope + '/RNN'
 		rnn_output = None
 		with tf.variable_scope(self.rnn_scope):
-			rnn_output = self.build_rnn(cnn_outputs)
+			rnn_output = self.build_rnn(obs_outputs)
 
 		self.logits = rnn_output
 
 
 	def add_loss_op(self):
+		location_dist = tf.contrib.distributions.MultivariateNormalDiag(loc=self.logits, scale=self.config.variance)
+		location_samples = location_dist.sample(shape=self.logits.get_shape())
+
+		rewards = - tf.reduce_mean(tf.abs(location_samples - self.targets_placeholder),axis=2) - \
+					tf.reduce_max(tf.abs(location_samples - self.targets_placeholder), axis=2)
+
+		timestep_rewards = tf.reduce_mean(rewards, axis=0)
+
+		tvars = tf.trainable_variables()
+		self.loss = 1/self.config.variance*(location_samples - self.logits)*(rewards - timestep_rewards)
+
 
 	def add_optimizer_op(self):
 		tvars = tf.trainable_variables()
@@ -138,14 +187,15 @@ class RecurrentCNN(Model)
 		self.merged_summary_op = tf.summary.merge_all()
 
 
-	def add_feed_dict(self, input_batch, target_batch, seq_batch):
+	def add_feed_dict(self, input_batch, target_batch, init_locations):
 		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch,
-						self.seq_lens_placeholder:seq_batch}
+						self.init_loc:init_locations}
 		return feed_dict
 
 
-	def train_one_batch(self, session, input_batch, target_batch, seq_batch):
-		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_batch)
+	def train_one_batch(self, session, input_batch, target_batch, init_locations):
+		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
+		_, loss = session.run([self.train_op, self.loss], feed_dict)
 
 
 	def test_one_batch(self, session):
