@@ -36,17 +36,18 @@ class Model(object)
 		pass
 
 	def train_one_batch(self, session, input_batch, target_batch, seq_batch):
+		# feed_dict = self.add_feed_dict(input_batch, target_batch, seq_batch)
 		pass
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_batch):
+		# feed_dict = self.add_feed_dict(input_batch, target_batch, seq_batch)
 		pass
 
 	def run_one_batch(self, args, session, input_batch, target_batch, seq_batch):
-		# feed_dict = self.add_feed_dict
 		# if args.train == 'train':
-		# 	self.train_one_batch
+		# 	outputs = self.train_one_batch(session, input_batch, target_batch, seq_batch)
 		# else:
-		# 	self.test_one_batch
+		# 	outputs = self.test_one_batch(session, input_batch, target_batch, seq_batch)
 		pass
 
 	def get_config(self):

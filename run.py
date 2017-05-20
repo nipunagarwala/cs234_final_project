@@ -17,6 +17,7 @@ GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
 
 def run_model(args):
     dataset_dir = utils.choose_data(args)
+    dataset = utils.load_dataset(dataset_dir)
     print "Using checkpoint directory: {0}".format(args.ckpt_dir)
 
     model = utils.choose_model(args) # pass in necessary model parameters
