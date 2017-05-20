@@ -1,4 +1,4 @@
-import tensorflow as tf 
+import tensorflow as tf
 import numpy as np
 import os
 from models import Config, Model
@@ -107,7 +107,7 @@ class RecurrentCNN(Model):
 							initializer=XAVIER_INIT)
 		b = tf.get_variable("Bias", shape=[self.config.num_classes])
 
-		rnnNet = tf.contrib.rnn.MultiRNNCell([self.cell(num_units = self.config.hidden_size) for _ in 
+		rnnNet = tf.contrib.rnn.MultiRNNCell([self.cell(num_units = self.config.hidden_size) for _ in
 									range(self.config.num_layers)], state_is_tuple=True)
 		(rnnNet_out, rnnNet_state) = tf.nn.dynamic_rnn(cell = rnnNet, inputs=rnn_inputs,
 		                sequence_length=self.config.seq_len,dtype=tf.float32)
@@ -126,7 +126,7 @@ class RecurrentCNN(Model):
 								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT ,
 								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
 								reuse = self.reuse,trainable=True)
-		fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.init_state_out_size, 
+		fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.init_state_out_size,
 								activation_fn=tf.nn.relu,
 								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT ,
 								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
@@ -146,7 +146,7 @@ class RecurrentCNN(Model):
 									dtype=tf.float32)
 				if t == 0:
 					st_state = self.build_initial_state()
-				if t > 0: 
+				if t > 0:
 					tf.get_variable_scope().reuse_variables()
 				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:]),st_state], axis=1)
 				obs_outputs.append(concat_result)
@@ -187,9 +187,9 @@ class RecurrentCNN(Model):
 		# intersection / union
  		# Robustness
  		# average count of number of resets (0 overlap in predicted and actual)
-     
+
 	def add_summary_op(self):
-		self.merged_summary_op = tf.summary.merge_all()
+		self.summary_op = tf.summary.merge_all()
 
 
 	def add_feed_dict(self, input_batch, target_batch, init_locations):
@@ -200,10 +200,25 @@ class RecurrentCNN(Model):
 
 	def train_one_batch(self, session, input_batch, target_batch, init_locations):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
-		_, loss = session.run([self.train_op, self.loss], feed_dict)
+		# Accuracy
+		_, summary, loss = session.run([self.train_op, self.summary_op, self.loss], feed_dict)
+		return summary, loss
 
 
 	def test_one_batch(self, session):
+		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
+		# Accuracy
+		summary, loss = session.run([self.summary_op, self.loss], feed_dict)
+		return summary, loss
+
+
+	def run_one_batch(self, args, session, input_batch, target_batch, seq_batch):
+		if args.train == 'train':
+			summary, loss = self.train_one_batch(session, input_batch, target_batch, seq_batch)
+		else:
+			summary, loss = self.test_one_batch(session, input_batch, target_batch, seq_batch)
+		return summary, loss
+
 
 	def get_config(self):
 		return self.config

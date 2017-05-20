@@ -7,9 +7,9 @@ from RecurrentCNN import *
 from VisualAttention import *
 
 # TODO: change according to data directories
-TRAIN_DATA = '/data/train_data/'
-TEST_DATA = '/data/test_data/'
-VALIDATION_DATA = '/data/validation_data/'
+TRAIN_DATA = '/data/MOT17/train/'
+TEST_DATA = '/data/MOT17/test/'
+# VALIDATION_DATA = '/data/validation_data/'
 SUMMARY_DIR = '/data/summary'
 
 
@@ -76,7 +76,7 @@ def parse_command_line():
 
 	parser.add_argument('-o', dest='override', action="store_true", help='Override the checkpoints')
 	parser.add_argument('-e', dest='num_epochs', default=10, type=int, help='Set the number of Epochs')
-	parser.add_argument('-ckpt', dest='ckpt_dir', default='/data/temp_ckpt/', type=str, help='Set the checkpoint directory')
+	parser.add_argument('-ckpt', dest='ckpt_dir', default='/data/ckpts/temp_ckpt/', type=str, help='Set the checkpoint directory')
 
 	args = parser.parse_args()
 	return args
@@ -101,12 +101,22 @@ def choose_model(args): # pass in necessary model parameters (...)
 	is_training = args.train == 'train' # boolean that certain models may require
 
 	if args.model == 'rnn_rcnn':
-        pass
-        # model = Model(...)
-        # model.build_model(...)
-        # model.add_loss()
-        # etc
-        # model.metrics() ?
+        features_shape = (240, 384, 3)
+        num_classes = 4
+        seq_len = 8
+
+        model = RecurrentCNN(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len,
+                        reuse=False,
+                        add_bn=False,
+    				    add_reg=False,
+                        scope="rnn_rcnn")
+        model.build_model()
+        model.add_loss_op()
+        model.add_optimizer_op()
+        model.add_summary_op()
     elif args.model == 'visual_attention':
         pass
     elif args.model == 'other':

@@ -10,6 +10,7 @@ import sys
 from RecurrentCNN import *
 from VisualAttention import *
 
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
 GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
@@ -24,7 +25,7 @@ def run_model(args):
     print "Running {0} model for {1} epochs.".format(args.model, args.num_epochs)
 
     global_step = tf.Variable(0, trainable=False, name='global_step')
-    saver = tf.train.Saver(max_to_keep=NUM_EPOCHS)
+    saver = tf.train.Saver(max_to_keep=args.num_epochs)
 
     with tf.Session(config=GPU_CONFIG) as session:
         print "Inititialized TF Session!"
@@ -36,7 +37,7 @@ def run_model(args):
         file_writer = tf.summary.FileWriter(args.ckpt_dir, graph=session.graph, max_queue=10, flush_secs=30)
 
 		# Val or Test set accuracies
-		batch_accuracies = []
+        batch_accuracies = []
 
         # Make computational graph
         if args.train == "train":
@@ -49,27 +50,27 @@ def run_model(args):
 
         for i in xrange(i_stopped, args.num_epochs):
             print "Running epoch ({0})...".format(i)
-				# Shuffle dataset on new epoch
-                random.shuffle(dateset)
-                batched_data, batched_labels, batched_seq_lens = utils.make_batches(dataset, n=batch_size)
-                for j in xrange(len(data_batches)):
-                    data_batch = batched_data[j]
-					label_batch = batched_labels[j]
-					seq_lens_batch = batched_seq_lens[j]
+			# Shuffle dataset on new epoch
+            random.shuffle(dateset)
+            batched_data, batched_labels, batched_seq_lens = utils.make_batches(dataset, n=batch_size)
+            for j in xrange(len(data_batches)):
+                data_batch = batched_data[j]
+                label_batch = batched_labels[j]
+                seq_lens_batch = batched_seq_lens[j]
 
-                    summary, accuracy = model.run_one_batch(args, session, input_batch, target_batch, seq_batch)
-                    file_writer.add_summary(summary, j)
+                summary, loss = model.run_one_batch(args, session, input_batch, target_batch, seq_batch)
+                file_writer.add_summary(summary, j)
 
-                    # Record batch accuracies for test code
-                    if args.train == "test" or args.train == 'val':
-                        batch_accuracies.append(accuracy)
+                # # Record batch accuracies for test code
+                # if args.train == "test" or args.train == 'val':
+                #     batch_accuracies.append(accuracy)
 
             if args.train == "train":
                 # Checkpoint model - every epoch
                 utils_runtime.save_checkpoint(args, session, saver, i)
-            else: # val or test
-                test_accuracy = np.mean(batch_accuracies)
-                print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
+            # else: # val or test
+            #     test_accuracy = np.mean(batch_accuracies)
+            #     print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
 
 
 def main(_):
