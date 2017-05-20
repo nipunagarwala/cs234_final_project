@@ -1,8 +1,10 @@
 import numpy as np
 import sys
 import os
-import argparse
+from argparse import ArgumentParser
 import cPickle as pickle
+import re
+
 from RecurrentCNN import *
 from VisualAttention import *
 
@@ -62,28 +64,29 @@ def save_checkpoint(args, session, saver, i):
 
 
 def parse_command_line():
-	desc = u'{0} [Args] [Options]\nDetailed options -h or --help'.format(__file__)
-	parser = ArgumentParser(description=desc)
+    desc = u'{0} [Args] [Options]\nDetailed options -h or --help'.format(__file__)
+    parser = ArgumentParser(description=desc)
 
-	print("Parsing Command Line Arguments...")
-	requiredModel = parser.add_argument_group('Required Model arguments')
+    print("Parsing Command Line Arguments...")
+    requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
-	requiredModel.add_argument('-m', choices = ["rnn_rcnn", "visual_attention"], type=str,
-						dest='model', required=True, help='Type of model to run')
-	requiredTrain = parser.add_argument_group('Required Train/Test arguments')
-	requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
-						dest='train', required=True, help='Training or Testing phase to be run')
+    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "visual_attention"], type=str,
+                        dest='model', required=True, help='Type of model to run')
+    requiredTrain = parser.add_argument_group('Required Train/Test arguments')
+    requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
+    					dest='train', required=True, help='Training or Testing phase to be run')
 
-	parser.add_argument('-o', dest='override', action="store_true", help='Override the checkpoints')
-	parser.add_argument('-e', dest='num_epochs', default=10, type=int, help='Set the number of Epochs')
-	parser.add_argument('-ckpt', dest='ckpt_dir', default='/data/ckpts/temp_ckpt/', type=str, help='Set the checkpoint directory')
+    parser.add_argument('-data', dest='data_dir', default=TRAIN_DATA, help='Specify the train data directory')
+    parser.add_argument('-o', dest='override', action="store_true", help='Override the checkpoints')
+    parser.add_argument('-e', dest='num_epochs', default=10, type=int, help='Set the number of Epochs')
+    parser.add_argument('-ckpt', dest='ckpt_dir', default='/data/ckpts/temp_ckpt/', type=str, help='Set the checkpoint directory')
 
-	args = parser.parse_args()
-	return args
+    args = parser.parse_args()
+    return args
 
 
 def choose_data(args):
-	if args.data_dir != '':
+    if args.data_dir != '':
         dataset_dir = args.data_dir
     elif args.train == 'train':
         dataset_dir = TRAIN_DATA
@@ -92,15 +95,15 @@ def choose_data(args):
     else: # args.train == 'dev'
         dataset_dir = VALIDATION_DATA
 
-	print 'Using dataset {0}'.format(dataset_dir)
+    print 'Using dataset {0}'.format(dataset_dir)
     print "Reading in {0}-set filenames.".format(args.train)
-	return dataset_dir
+    return dataset_dir
 
 
 def choose_model(args): # pass in necessary model parameters (...)
-	is_training = args.train == 'train' # boolean that certain models may require
+    is_training = args.train == 'train' # boolean that certain models may require
 
-	if args.model == 'rnn_rcnn':
+    if args.model == 'rnn_rcnn':
         features_shape = (240, 384, 3)
         num_classes = 4
         seq_len = 8
@@ -108,10 +111,10 @@ def choose_model(args): # pass in necessary model parameters (...)
         model = RecurrentCNN(features_shape,
                         num_classes,
                         cell_type='lstm',
-                        seq_len,
+                        seq_len=seq_len,
                         reuse=False,
                         add_bn=False,
-    				    add_reg=False,
+                        add_reg=False,
                         scope="rnn_rcnn")
         model.build_model()
         model.add_loss_op()
@@ -122,7 +125,7 @@ def choose_model(args): # pass in necessary model parameters (...)
     elif args.model == 'other':
         pass
 
-	return model
+    return model
 
 
 '''
@@ -166,7 +169,7 @@ def load_dataset(dataset_path):
     data = []
     labels = []
     seq_lens = []
-    for dirpath, dirnames, filenames in os.walk(path):
+    for dirpath, dirnames, filenames in os.walk(dataset_path):
         for filename in filenames:
             with open(os.path.join(dirpath, filename), 'rb') as f:
                 curr_seq, curr_labels, seq_len = pickle.load(f)

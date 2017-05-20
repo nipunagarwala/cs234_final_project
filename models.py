@@ -11,7 +11,7 @@ class Config(object):
 		pass
 
 
-class Model(object)
+class Model(object):
 
 	def __init__(self):
 		pass
