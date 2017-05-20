@@ -12,6 +12,30 @@ MEDIUM_IMAGE_RESCALE = 0.5
 FINAL_IMAGE_SIZE = (240,384)
 FINAL_IMAGE_DIM = (240, 384, 3)
 
+def get_seqinfo(path):
+    name_to_seqinfo = {}
+    train_path = os.path.join(path, "train")
+    test_path = os.path.join(path, "test")
+    train_directories = [os.path.join(train_path, dirname) for dirname in os.listdir(train_path)]
+    test_directories = [os.path.join(test_path, dirname) for dirname in os.listdir(test_path)]
+    directories = train_directories + test_directories
+    for dirname in directories:
+        height, width = get_video_size(os.path.join(dirname, "seqinfo.ini"))
+        name_to_seqinfo[os.path.basename(dirname)] = (height, width)
+    return name_to_seqinfo
+
+def get_video_size(seqinfo):
+    width = 0
+    height = 0
+    with open(seqinfo, "r") as f:
+        for line in f:
+            split_line = line.strip().split("=")
+            if split_line[0] == "imWidth":
+                width = int(split_line[1])
+            elif split_line[0] == "imHeight":
+                height = int(split_line[1])
+    return height, width
+
 def process_mot(path):
     '''
     1920 x 1080 -> 384 x 216
@@ -70,14 +94,25 @@ def normalize_training_set(images, mean, stdev):
         np.save(output_filename, img, allow_pickle=False)
 
 def preprocess_labels(path):
+    video_sizes = get_seqinfo(path)
     for dirpath, dirnames, filenames in os.walk(path):
         for filename in filenames:
             frame_to_labels = defaultdict(str)
             if filename == "gt.txt":
+                seq_name = os.path.basename(os.path.dirname(dirpath))
+                seq_height, seq_width = video_sizes[seq_name]
                 with open(os.path.join(dirpath, filename), "r") as f:
                     for line in f:
                         split_line = line.split(",")
-                        frame_to_labels[split_line[0]] += line
+                        left, top, width, height = map(float, split_line[2:6])
+                        norm_left = left / seq_width
+                        norm_top = top / seq_height
+                        norm_width = width / seq_width
+                        norm_height = height / seq_height
+                        norm_dim = [norm_left, norm_top, norm_width, norm_height]
+                        new_line = split_line[:2] + [format(x, "0.6f") for x in norm_dim] + split_line[6:]
+                        new_line = ",".join(new_line)
+                        frame_to_labels[split_line[0]] += new_line
             for frame in frame_to_labels:
                 output_filename = os.path.join(dirpath, frame.zfill(6) + ".txt")
                 with open(output_filename, "w") as of:
@@ -89,6 +124,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     path = args.corpus_path
     
+    #video_sizes = get_seqinfo(path)
     images = process_mot(path)
     mean, stdev = training_set_mean_stdev(images)
     normalize_training_set(images, mean, stdev)
