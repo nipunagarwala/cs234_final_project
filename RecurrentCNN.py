@@ -142,13 +142,13 @@ class RecurrentCNN(Model)
 		obs_outputs = []
 		with tf.variable_scope(self.cnn_scope):
 			for t in xrange(self.seq_len):
-				st_state = tf.zeros(shape=(self.inputs_placeholder.get_shape()[1], self.config.init_state_out_size),
+				st_state = tf.zeros(shape=(self.inputs_placeholder.get_shape()[0], self.config.init_state_out_size),
 									dtype=tf.float32)
 				if t == 0:
 					st_state = self.build_initial_state()
 				if t > 0: 
 					tf.get_variable_scope().reuse_variables()
-				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[t,:,:,:,:]),st_state], axis=1)
+				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:]),st_state], axis=1)
 				obs_outputs.append(concat_result)
 
 		obs_outputs = tf.stack(cnn_outputs, axis=1)
