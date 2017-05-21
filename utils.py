@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 import cPickle as pickle
 import re
 
-from RecurrentCNN import *
-from VisualAttention import *
+#from RecurrentCNN import *
+#from VisualAttention import *
 
 # TODO: change according to data directories
 TRAIN_DATA = '/data/MOT17/data/train/'
@@ -16,7 +16,6 @@ SUMMARY_DIR = '/data/summary'
 
 
 ################################# Logging ###################################
-
 
 def clear_summaries():
     if tf.gfile.Exists(SUMMARY_DIR):
@@ -127,7 +126,6 @@ def choose_model(args): # pass in necessary model parameters (...)
 
     return model
 
-
 '''
     Given a list/array of video frames and labels, this shuffles the
     list/array and returns 3 lists of numpy arrays, i.e. video frames,
@@ -149,6 +147,7 @@ def make_batches(dataset, batch_size=32):
     batched_data = []
     batched_labels = []
     batched_seq_lens = []
+    batched_bbox = []
     num_batches = int(np.ceil(len(data) / float(batch_size)))
 
     for i in range(num_batches):
@@ -156,8 +155,9 @@ def make_batches(dataset, batch_size=32):
         batched_data.append(data[batch_start : batch_start + batch_size])
         batched_labels.append(labels[batch_start : batch_start + batch_size])
         batched_seq_lens.append(seq_lens[batch_start : batch_start + batch_size])
-
-    return batched_data, batched_labels, batched_seq_lens
+        bboxes = [seq[0][1:5] for seq in labels[batch_start : batch_start + batch_size]]
+        batched_bbox.append(bboxes)
+    return batched_data, batched_labels, batched_seq_lens, batched_bbox
 
 
 '''
@@ -180,6 +180,6 @@ def load_dataset(dataset_path):
 
 
 if __name__ == "__main__":
-    path = "data_dev/train/"
+    path = "/data/MOT17/data/train"
     dataset = load_dataset(path)
-    batched_data, batched_labels, batched_seq_lens = make_batches(dataset)
+    batched_data, batched_labels, batched_seq_lens, batched_bbox = make_batches(dataset)
