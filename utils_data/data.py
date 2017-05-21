@@ -62,7 +62,7 @@ def get_gt_labels(gt_filename):
     with open(gt_filename, "r") as f:
         for line in f:
             split_line = line.strip().split(",")
-            values = map(float, split_line[2:6])
+            values = map(float, split_line[1:6])
             #print values
             #values.append(float(split_line[-1]))
             labels.append(values)
@@ -72,7 +72,7 @@ def get_single_label(curr_labels):
     item_to_step = defaultdict(list)
     for time_step in range(len(curr_labels)):
         for label in curr_labels[time_step]:
-            item_to_step[label[0]].append(label)
+            item_to_step[label[0]].append(label[1:])
     keys = item_to_step.keys()
     random.shuffle(keys)
     for item in keys:

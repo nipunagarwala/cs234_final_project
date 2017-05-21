@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 import cPickle as pickle
 import re
 
-from RecurrentCNN import *
-from VisualAttention import *
+#from RecurrentCNN import *
+#from VisualAttention import *
 
 # TODO: change according to data directories
 TRAIN_DATA = '/data/MOT17/data/train/'
@@ -152,11 +152,11 @@ def make_batches(dataset, batch_size=32):
 
     for i in range(num_batches):
         batch_start = i * batch_size
-        batched_data.append(data[batch_start : batch_start + batch_size])
-        batched_labels.append(labels[batch_start : batch_start + batch_size])
-        batched_seq_lens.append(seq_lens[batch_start : batch_start + batch_size])
+        batched_data.append(np.asarray(data[batch_start : batch_start + batch_size]))
+        batched_labels.append(np.asarray(labels[batch_start : batch_start + batch_size]))
+        batched_seq_lens.append(np.asarray(seq_lens[batch_start : batch_start + batch_size]))
         bboxes = [seq[0][0:4] for seq in labels[batch_start : batch_start + batch_size]]
-        batched_bbox.append(bboxes)
+        batched_bbox.append(np.asarray(bboxes))
     return batched_data, batched_labels, batched_seq_lens, batched_bbox
 
 
@@ -173,10 +173,12 @@ def load_dataset(dataset_path):
         for filename in filenames:
             with open(os.path.join(dirpath, filename), 'rb') as f:
                 curr_seq, curr_labels, seq_len = pickle.load(f)
-                data.append(curr_seq)
-                labels.append(curr_labels)
-                seq_lens.append(seq_len)
-    return (np.asarray(data), np.asarray(labels), np.asarray(seq_lens))
+                data.append(np.asarray(curr_seq))
+                labels.append(np.asarray(curr_labels))
+                #print curr_labels
+                #print np.asarray(labels).shape
+                seq_lens.append(np.asarray(seq_len))
+    return (data, labels, seq_lens)
 
 
 if __name__ == "__main__":
