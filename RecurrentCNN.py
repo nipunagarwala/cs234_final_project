@@ -12,7 +12,7 @@ class RecurrentCNNConfig(Config):
 		self.batch_size = 64
 		self.lr = 1e-3
 		self.l2_lambda = 0.0000001
-		self.hidden_size = 256
+		self.hidden_size = 128
 		self.num_epochs = 50
 		self.num_layers = 3
 		self.num_classes = 4 # Mean vector of size 4
@@ -21,7 +21,7 @@ class RecurrentCNNConfig(Config):
 		self.init_loc_size = (4,)
 		self.max_norm = 10
 		self.keep_prob = 0.8
-		self.init_state_out_size = 32
+		self.init_state_out_size = 128
 		self.cnn_out_shape = 128
 		self.variance = 1e-2
 
@@ -29,7 +29,7 @@ class RecurrentCNNConfig(Config):
 class RecurrentCNN(Model):
 
 	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=1, reuse=False, add_bn=False,
-				add_reg=False, scope=None):
+				add_reg=False, scope='RCNN'):
 		self.config = RecurrentCNNConfig()
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
@@ -61,44 +61,47 @@ class RecurrentCNN(Model):
 			raise ValueError('Input correct cell type')
 
 
-	def build_cnn(self, cur_inputs):
-		conv_out1 = tf.contrib.layers.conv2d(inputs=cur_inputs, num_outputs=32, kernel_size=[3,3],
-							stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-							normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-							weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-							reuse = self.reuse, trainable=True)
-
-		conv_out2 = tf.contrib.layers.conv2d(inputs=conv_out1, num_outputs=32, kernel_size=[3,3],
-							stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-							normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-							weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-							reuse = self.reuse, trainable=True)
-
-		max_pool1 = tf.contrib.layers.max_pool2d(inputs=conv_out2, kernel_size=[3,3],stride=[1,1],padding='SAME')
-
-		conv_out3 = tf.contrib.layers.conv2d(inputs=max_pool1, num_outputs=32, kernel_size=[3,3],
-							stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-							normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-							weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-							reuse = self.reuse, trainable=True)
-
-		conv_out4 = tf.contrib.layers.conv2d(inputs=conv_out3, num_outputs=32, kernel_size=[3,3],
-							stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-							normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-							weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-							reuse = self.reuse, trainable=True)
-
-		max_pool2 = tf.contrib.layers.max_pool2d(inputs=conv_out4, kernel_size=[3,3],stride=[1,1],padding='SAME')
-		flatten_out = tf.contrib.layers.flatten(max_pool2)
-
-		fc1 = tf.contrib.layers.fully_connected(inputs=flatten_out, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+	def build_cnn(self, cur_inputs, reuse=False, scope=None):
+		with tf.variable_scope(scope):
+			conv_out1 = tf.contrib.layers.conv2d(inputs=cur_inputs, num_outputs=32, kernel_size=[3,3],
+								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
 								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
 								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = self.reuse,trainable=True)
-		fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+								reuse = reuse, scope='conv1', trainable=True)
+
+			conv_out2 = tf.contrib.layers.conv2d(inputs=conv_out1, num_outputs=32, kernel_size=[3,3],
+								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
 								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
 								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = self.reuse,trainable=True)
+								reuse = reuse,scope='conv2', trainable=True)
+
+			max_pool1 = tf.contrib.layers.max_pool2d(inputs=conv_out2, kernel_size=[3,3],stride=[2,2],
+								scope='maxpool1', padding='SAME')
+
+			conv_out3 = tf.contrib.layers.conv2d(inputs=max_pool1, num_outputs=32, kernel_size=[3,3],
+								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = reuse,scope='conv3', trainable=True)
+
+			conv_out4 = tf.contrib.layers.conv2d(inputs=conv_out3, num_outputs=32, kernel_size=[3,3],
+								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = reuse,scope='conv4', trainable=True)
+
+			max_pool2 = tf.contrib.layers.max_pool2d(inputs=conv_out4, kernel_size=[3,3],stride=[2,2],
+										scope='maxpool1',padding='SAME')
+			flatten_out = tf.contrib.layers.flatten(max_pool2,scope='flatten')
+
+			fc1 = tf.contrib.layers.fully_connected(inputs=flatten_out, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									reuse = reuse,scope='fc1',trainable=True)
+			fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									reuse = reuse,scope='fc2',trainable=True)
 
 		cnn_out = fc2
 		return cnn_out
@@ -121,18 +124,22 @@ class RecurrentCNN(Model):
 
 		return rnn_out
 
-	def build_initial_state(self):
-		fc1 = tf.contrib.layers.fully_connected(inputs=self.init_loc, num_outputs=self.config.init_state_out_size,
-								activation_fn=tf.nn.relu,
-								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = self.reuse,trainable=True)
-		fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.init_state_out_size,
-								activation_fn=tf.nn.relu,
-								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = self.reuse,trainable=True)
+	def build_initial_state(self, loc_inputs, reuse=False, scope=None):
+		with tf.variable_scope(scope):
+			fc1 = tf.contrib.layers.fully_connected(inputs=loc_inputs, num_outputs=self.config.init_state_out_size,
+									activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									reuse = reuse, scope='fc1', trainable=True)
 
+			fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.init_state_out_size,
+									activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									reuse = reuse,scope='fc2',trainable=True)
+
+
+		
 		init_state_out = fc2
 		return init_state_out
 
@@ -140,17 +147,24 @@ class RecurrentCNN(Model):
 
 	def build_model(self):
 		self.cnn_scope = self.scope + '/CNN'
+		self.fc_scope = self.scope + '/FC'
 		obs_outputs = []
-		with tf.variable_scope(self.cnn_scope):
-			for t in xrange(self.config.seq_len):
-				x = tf.placeholder(tf.float32, shape=[None, self.config.init_state_out_size])
-				st_state = tf.zeros_like(x)
-				if t == 0:
-					st_state = self.build_initial_state()
-				if t > 0:
-					tf.get_variable_scope().reuse_variables()
-				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:]),st_state], axis=1)
-				obs_outputs.append(concat_result)
+		reuse = False
+		for t in xrange(self.config.seq_len):
+			print("Current iteration: {0}".format(t))
+			x = tf.placeholder(tf.float32, shape=[None, self.config.init_state_out_size])
+			st_state = tf.zeros_like(x)
+			if t == 0:
+				reuse = False
+				st_state = self.build_initial_state(self.init_loc, reuse, self.fc_scope)
+			if t > 0:
+				# tf.get_variable_scope().reuse_variables()
+				reuse = True
+				st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
+
+			concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
+									 axis=1)
+			obs_outputs.append(concat_result)
 
 		obs_outputs = tf.stack(obs_outputs, axis=1)
 
@@ -163,13 +177,18 @@ class RecurrentCNN(Model):
 
 
 	def add_loss_op(self):
-		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=self.logits, diag_stdev=self.config.variance)
-		location_samples = location_dist.sample(sample_shape=tf.shape(self.logits))
+		logits_shape = tf.shape(self.logits)
+		logits_flat = tf.reshape(self.logits, [-1])
+		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat, 
+									diag_stdev=self.config.variance*tf.identity(logits_flat))
+		location_samples = location_dist.sample([1])
 
-		rewards = - tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=2) - \
-					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=2)
+		location_samples = tf.reshape(location_samples, logits_shape)
 
-		timestep_rewards = tf.reduce_mean(rewards, axis=0)
+		rewards = - tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=2,keep_dims=True) - \
+					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=2,keep_dims=True)
+
+		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
 		tvars = tf.trainable_variables()
 		self.loss = 1/self.config.variance*(location_samples - self.logits)*(rewards - timestep_rewards)
@@ -202,8 +221,8 @@ class RecurrentCNN(Model):
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 		# Accuracy
-		_, summary, loss = session.run([self.train_op, self.summary_op, self.loss], feed_dict)
-		return summary, loss
+		_, loss = session.run([self.train_op, self.loss], feed_dict)
+		return None, loss
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):

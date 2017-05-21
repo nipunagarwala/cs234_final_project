@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 import cPickle as pickle
 import re
 
-#from RecurrentCNN import *
-#from VisualAttention import *
+from RecurrentCNN import *
+from VisualAttention import *
 
 # TODO: change according to data directories
 TRAIN_DATA = '/data/MOT17/data/train/'
@@ -178,7 +178,7 @@ def load_dataset(dataset_path):
                 #print curr_labels
                 #print np.asarray(labels).shape
                 seq_lens.append(np.asarray(seq_len))
-    return (data, labels, seq_lens)
+    return (np.asarray(data), np.asarray(labels), np.asarray(seq_lens))
 
 
 if __name__ == "__main__":

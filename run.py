@@ -61,10 +61,10 @@ def run_model(args):
                 seq_lens_batch = batched_seq_lens[j]
                 bbox_batch =  batched_bbox[j]
 
-                # print data_batch.shape
-                # print label_batch.shape
-                # print seq_lens_batch.shape
-                # print bbox_batch.shape
+                print data_batch.shape
+                print label_batch.shape
+                print seq_lens_batch.shape
+                print bbox_batch.shape
                 summary, loss = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
                 print("Loss of the current batch is {0}".format(loss))
                 file_writer.add_summary(summary, j)
