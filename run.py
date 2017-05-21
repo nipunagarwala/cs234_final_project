@@ -15,6 +15,7 @@ from VisualAttention import *
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
 GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
+BATCH_SIZE = 32
 
 
 def run_model(args):
@@ -52,14 +53,20 @@ def run_model(args):
         for i in xrange(i_stopped, args.num_epochs):
             print "Running epoch ({0})...".format(i)
 			# Shuffle dataset on new epoch
-            random.shuffle(dataset)
-            batched_data, batched_labels, batched_seq_lens = utils.make_batches(dataset, n=batch_size)
-            for j in xrange(len(data_batches)):
+            # random.shuffle(dataset)
+            batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
+            for j in xrange(len(batched_data)):
                 data_batch = batched_data[j]
                 label_batch = batched_labels[j]
                 seq_lens_batch = batched_seq_lens[j]
+                bbox_batch =  batched_bbox[j]
 
-                summary, loss = model.run_one_batch(args, session, input_batch, target_batch, seq_batch)
+                # print data_batch.shape
+                # print label_batch.shape
+                # print seq_lens_batch.shape
+                # print bbox_batch.shape
+                summary, loss = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
+                print("Loss of the current batch is {0}".format(loss))
                 file_writer.add_summary(summary, j)
 
                 # # Record batch accuracies for test code
