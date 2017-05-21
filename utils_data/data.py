@@ -42,8 +42,9 @@ def construct_sequence(input_path, output, seq_len):
             curr_output = os.path.join(output, dirname + "-" + str(i).zfill(6))
             curr_labels = get_single_label(curr_labels) if SINGLE_OBJECT else curr_labels
             curr_dataset = (curr_seq, curr_labels, len(curr_seq))
-            with open(curr_output, "wb") as f:
-                pickle.dump(curr_dataset, f)
+            if curr_labels:
+                with open(curr_output, "wb") as f:
+                    pickle.dump(curr_dataset, f)
     
     #dataset = (data, labels, seq_lens)
     #with open(output, "wb") as f:
@@ -61,8 +62,9 @@ def get_gt_labels(gt_filename):
     with open(gt_filename, "r") as f:
         for line in f:
             split_line = line.strip().split(",")
-            values = map(float, split_line[1:-1])
-            values.append(float(split_line[-1]))
+            values = map(float, split_line[2:6])
+            #print values
+            #values.append(float(split_line[-1]))
             labels.append(values)
     return labels
 
@@ -76,7 +78,8 @@ def get_single_label(curr_labels):
     for item in keys:
         if len(item_to_step[item]) == len(curr_labels):
             return item_to_step[item]
-
+    print "NONE FOUND"
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
     parser.add_argument("corpus_path", type=str, help="Path to corpus")
