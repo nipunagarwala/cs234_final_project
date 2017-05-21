@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 import cPickle as pickle
 import re
 
-from RecurrentCNN import *
-from VisualAttention import *
+#from RecurrentCNN import *
+#from VisualAttention import *
 
 # TODO: change according to data directories
 TRAIN_DATA = '/data/MOT17/data/train/'
@@ -155,7 +155,7 @@ def make_batches(dataset, batch_size=32):
         batched_data.append(data[batch_start : batch_start + batch_size])
         batched_labels.append(labels[batch_start : batch_start + batch_size])
         batched_seq_lens.append(seq_lens[batch_start : batch_start + batch_size])
-        bboxes = [seq[0][0][1:5] for seq in labels[batch_start : batch_start + batch_size]]
+        bboxes = [seq[0][1:5] for seq in labels[batch_start : batch_start + batch_size]]
         batched_bbox.append(bboxes)
     return batched_data, batched_labels, batched_seq_lens, batched_bbox
 
