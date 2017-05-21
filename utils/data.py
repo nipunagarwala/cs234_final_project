@@ -7,9 +7,9 @@ import random
 
 SINGLE_OBJECT = True
 
-def construct_train_sequences(path, seq_len=8):
+def construct_train_sequences(path, output_path, seq_len=8):
     train_path = os.path.join(path, "train")
-    train_output_dir = os.path.join('data', 'train')
+    train_output_dir = os.path.join(output_path, 'data', 'train')
     if not os.path.exists(train_output_dir):
         os.makedirs(train_output_dir)
     construct_sequence(train_path, train_output_dir, seq_len)
@@ -80,7 +80,8 @@ def get_single_label(curr_labels):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess images from each sequence")
     parser.add_argument("corpus_path", type=str, help="Path to corpus")
+    parser.add_argument("output_path", type=str, help="Path to output directory")
     args = parser.parse_args()
     
-    construct_train_sequences(args.corpus_path)
+    construct_train_sequences(args.corpus_path, args.output_path)
     #construct_test_sequences("MOT17_dev")
