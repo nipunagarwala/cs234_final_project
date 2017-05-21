@@ -193,31 +193,31 @@ class RecurrentCNN(Model):
 		self.summary_op = tf.summary.merge_all()
 
 
-	def add_feed_dict(self, input_batch, target_batch, init_locations):
+	def add_feed_dict(self, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch,
-						self.init_loc:init_locations}
+						self.init_loc:init_locations_batch, self.seq_len_placeholder:seq_len_batch}
 		return feed_dict
 
 
-	def train_one_batch(self, session, input_batch, target_batch, init_locations):
-		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
+	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
+		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 		# Accuracy
 		_, summary, loss = session.run([self.train_op, self.summary_op, self.loss], feed_dict)
 		return summary, loss
 
 
-	def test_one_batch(self, session):
+	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
 		summary, loss = session.run([self.summary_op, self.loss], feed_dict)
 		return summary, loss
 
 
-	def run_one_batch(self, args, session, input_batch, target_batch, seq_batch):
+	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		if args.train == 'train':
-			summary, loss = self.train_one_batch(session, input_batch, target_batch, seq_batch)
+			summary, loss = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
 		else:
-			summary, loss = self.test_one_batch(session, input_batch, target_batch, seq_batch)
+			summary, loss = self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
 		return summary, loss
 
 

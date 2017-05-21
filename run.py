@@ -7,6 +7,7 @@ import numpy as np
 import utils
 import os
 import sys
+import random
 from RecurrentCNN import *
 from VisualAttention import *
 
@@ -18,7 +19,7 @@ GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
 
 def run_model(args):
     dataset_dir = utils.choose_data(args)
-    # dataset = utils.load_dataset(dataset_dir)
+    dataset = utils.load_dataset(dataset_dir)
     print "Using checkpoint directory: {0}".format(args.ckpt_dir)
 
     model = utils.choose_model(args) # pass in necessary model parameters
@@ -51,7 +52,7 @@ def run_model(args):
         for i in xrange(i_stopped, args.num_epochs):
             print "Running epoch ({0})...".format(i)
 			# Shuffle dataset on new epoch
-            random.shuffle(dateset)
+            random.shuffle(dataset)
             batched_data, batched_labels, batched_seq_lens = utils.make_batches(dataset, n=batch_size)
             for j in xrange(len(data_batches)):
                 data_batch = batched_data[j]
