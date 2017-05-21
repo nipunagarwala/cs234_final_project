@@ -47,16 +47,28 @@ class Seq2SeqCritic(Model):
 			self.reg_fn = None
 
 		if cell_type == 'rnn':
-			self.cell = tf.contrib.rnn.RNNCell
+			self.encoder_cell = tf.contrib.rnn.RNNCell
+			self.decoder_cell = tf.contrib.rnn.RNNCell
 		elif cell_type == 'gru':
-			self.cell = tf.contrib.rnn.GRUCell
+			self.encoder_cell = tf.contrib.rnn.GRUCell
+			self.decoder_cell = tf.contrib.rnn.GRUCell
 		elif cell_type == 'lstm':
-			self.cell = tf.contrib.rnn.LSTMCell
+			self.encoder_cell = tf.contrib.rnn.LSTMCell
+			self.decoder_cell = tf.contrib.rnn.LSTMCell
 		else:
 			raise ValueError('Input correct cell type')
 
 
 	def build_model(self):
+		encoder_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_cell(num_units = self.config.hidden_size) for _ in
+									range(self.config.num_layers)], state_is_tuple=True)
+		decoder_multi = tf.contrib.rnn.MultiRNNCell([self.decoder_cell(num_units = self.config.hidden_size) for _ in
+									range(self.config.num_layers)], state_is_tuple=True)
+
+		self.encoder_outputs, self.encoder_state = tf.nn.dynamic_rnn(cell=encoder_multi, inputs=self.inputs_placeholder,
+							  sequence_length=self.seq_len_placeholder,time_major=True, dtype=tf.float32) #initial_state=initial_tuple)
+
+		
 
 
 	# def add_loss_op(self):
