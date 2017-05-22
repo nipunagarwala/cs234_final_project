@@ -139,7 +139,7 @@ class RecurrentCNN(Model):
 									reuse = reuse,scope='fc2',trainable=True)
 
 
-		
+
 		init_state_out = fc2
 		return init_state_out
 
@@ -179,7 +179,7 @@ class RecurrentCNN(Model):
 	def add_loss_op(self):
 		logits_shape = tf.shape(self.logits)
 		logits_flat = tf.reshape(self.logits, [-1])
-		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat, 
+		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
 									diag_stdev=self.config.variance*tf.identity(logits_flat))
 		location_samples = location_dist.sample([1])
 
@@ -202,12 +202,43 @@ class RecurrentCNN(Model):
 		self.train_op = optimizer.apply_gradients(zip(grads, tvars))
 
 
-	# def add_error_op(self):
+	def add_error_op(self):
 		# VOT metrics (MOT only makes sense for multiple object)
  		# Accuracy:
 		# intersection / union
  		# Robustness
  		# average count of number of resets (0 overlap in predicted and actual)
+
+		# y, x, height, width
+		# Normalized outputs --> normalized area
+		# left = x
+		# right = x + width
+		# top = y
+		# bottom = y + height
+
+		p_left = self.logits[:, :, 1]
+		g_left = self.targets_placeholder[:, :, 1]
+		left = tf.maximum(p_left, g_left)
+
+		p_right = self.logits[:, :, 1] + self.logits[:, :, 3]
+		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		right = tf.minimum(p_right, g_right)
+
+		p_top = self.logits[:, :, 0]
+		g_top = self.targets_placeholder[:, :, 0]
+		top = tf.maximum(p_top, g_top)
+
+		p_bottom = self.logits[:, :, 0] + self.logits[:, :, 2]
+		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		bottom = tf.minimum(p_bottom, g_bottom)
+
+		intersection = (right - left) * (top - bottom)
+		p_area = self.logits[:, :, 3] * self.logits[:, :, 2]
+		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		union = p_area + g_area - intersection
+
+		self.area_accuracy = tf.reduce_mean(intersection / union)
+
 
 	def add_summary_op(self):
 		self.summary_op = tf.summary.merge_all()
