@@ -191,12 +191,13 @@ class RecurrentCNN(Model):
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
 		tvars = tf.trainable_variables()
-		self.loss = 1/self.config.variance*(location_samples - self.logits)*(rewards - timestep_rewards)
+		self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards - timestep_rewards),axis=1),axis=0)
+		self.total_rewards = tf.reduce_sum(timestep_rewards)
 
 
 	def add_optimizer_op(self):
 		tvars = tf.trainable_variables()
-		grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, tvars),self.config.max_norm)
+		grads = tf.gradients(self.loss, tvars)
 		optimizer = tf.train.AdamOptimizer(self.config.lr)
 		self.train_op = optimizer.apply_gradients(zip(grads, tvars))
 
@@ -221,23 +222,23 @@ class RecurrentCNN(Model):
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 		# Accuracy
-		_, loss = session.run([self.train_op, self.loss], feed_dict)
-		return None, loss
+		_, loss, rewards = session.run([self.train_op, self.loss, self.total_rewards], feed_dict)
+		return None, loss, rewards
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
-		summary, loss = session.run([self.summary_op, self.loss], feed_dict)
-		return summary, loss
+		summary, loss = session.run([self.summary_op, self.loss, self.total_rewards], feed_dict)
+		return summary, loss, rewards
 
 
 	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		if args.train == 'train':
-			summary, loss = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
+			summary, loss, rewards = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
 		else:
-			summary, loss = self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
-		return summary, loss
+			summary, loss, rewards= self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
+		return summary, loss, rewards
 
 
 	def get_config(self):
