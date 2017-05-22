@@ -140,7 +140,7 @@ class RecurrentCNN(Model):
 									reuse = reuse,scope='fc2',trainable=True)
 
 
-		
+
 		init_state_out = fc2
 		return init_state_out
 
@@ -180,7 +180,7 @@ class RecurrentCNN(Model):
 	def add_loss_op(self):
 		logits_shape = tf.shape(self.logits)
 		logits_flat = tf.reshape(self.logits, [-1])
-		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat, 
+		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
 									diag_stdev=self.config.variance*tf.identity(logits_flat))
 		location_samples = location_dist.sample([1])
 
@@ -210,12 +210,43 @@ class RecurrentCNN(Model):
 		self.train_op = optimizer.apply_gradients(zip(grads, tvars))
 
 
-	# def add_error_op(self):
+	def add_error_op(self):
 		# VOT metrics (MOT only makes sense for multiple object)
  		# Accuracy:
 		# intersection / union
  		# Robustness
  		# average count of number of resets (0 overlap in predicted and actual)
+
+		# y, x, height, width
+		# Normalized outputs --> normalized area
+		# left = x
+		# right = x + width
+		# top = y
+		# bottom = y + height
+
+		p_left = self.logits[:, :, 1]
+		g_left = self.targets_placeholder[:, :, 1]
+		left = tf.maximum(p_left, g_left)
+
+		p_right = self.logits[:, :, 1] + self.logits[:, :, 3]
+		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		right = tf.minimum(p_right, g_right)
+
+		p_top = self.logits[:, :, 0]
+		g_top = self.targets_placeholder[:, :, 0]
+		top = tf.maximum(p_top, g_top)
+
+		p_bottom = self.logits[:, :, 0] + self.logits[:, :, 2]
+		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		bottom = tf.minimum(p_bottom, g_bottom)
+
+		intersection = (right - left) * (top - bottom)
+		p_area = self.logits[:, :, 3] * self.logits[:, :, 2]
+		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		union = p_area + g_area - intersection
+
+		self.area_accuracy = tf.reduce_mean(intersection / union)
+
 
 	def add_summary_op(self):
 		self.summary_op = tf.summary.merge_all()
@@ -230,23 +261,25 @@ class RecurrentCNN(Model):
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 		# Accuracy
-		_, loss, rewards = session.run([self.train_op, self.loss, self.total_rewards], feed_dict)
-		return None, loss, rewards
+		_, loss, rewards, area_accuracy = session.run([self.train_op, self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		# TODO: Run summary as well, once we implement summaries.
+		return None, loss, rewards, area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
-		summary, loss = session.run([self.summary_op, self.loss, self.total_rewards], feed_dict)
-		return summary, loss, rewards
+		loss, area_accuracy = session.run([self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		# TODO: Run summary as well, once we implement summaries.
+		return None, loss, rewards, area_accuracy
 
 
 	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		if args.train == 'train':
-			summary, loss, rewards = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
+			summary, loss, rewards, area_accuracy = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
 		else:
-			summary, loss, rewards= self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
-		return summary, loss, rewards
+			summary, loss, rewards, area_accuracy = self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
+		return summary, loss, rewards, area_accuracy
 
 
 	def get_config(self):
