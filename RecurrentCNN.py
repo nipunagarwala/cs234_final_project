@@ -36,7 +36,7 @@ class RecurrentCNN(Model):
 		self.reuse = reuse
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
 		self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,)+ self.config.init_loc_size))
-		self.targets_placeholder = tf.placeholder(tf.int32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
 
@@ -253,23 +253,25 @@ class RecurrentCNN(Model):
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 		# Accuracy
-		_, loss, rewards = session.run([self.train_op, self.loss, self.total_rewards], feed_dict)
-		return None, loss, rewards
+		_, loss, rewards, area_accuracy = session.run([self.train_op, self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		# TODO: Run summary as well, once we implement summaries.
+		return None, loss, rewards, area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
-		summary, loss = session.run([self.summary_op, self.loss, self.total_rewards], feed_dict)
-		return summary, loss, rewards
+		loss, area_accuracy = session.run([self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		# TODO: Run summary as well, once we implement summaries.
+		return None, loss, rewards, area_accuracy
 
 
 	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		if args.train == 'train':
-			summary, loss, rewards = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
+			summary, loss, rewards, area_accuracy = self.train_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
 		else:
-			summary, loss, rewards= self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
-		return summary, loss, rewards
+			summary, loss, rewards, area_accuracy = self.test_one_batch(session, input_batch, target_batch, seq_len_batch , init_locations_batch)
+		return summary, loss, rewards, area_accuracy
 
 
 	def get_config(self):

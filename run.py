@@ -61,10 +61,11 @@ def run_model(args):
                 seq_lens_batch = batched_seq_lens[j]
                 bbox_batch =  batched_bbox[j]
 
-                summary, loss, rewards = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
+                summary, loss, rewards, area_accuracy = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
                 print("Loss of the current batch is {0}".format(loss))
                 print("Finished batch {0}/{1}".format(j,len(batched_data)))
                 print("Cumulative average rewards for batch: {0}".format(rewards))
+                print("Average area accuracy per sequence per batch: {0}".format(area_accuracy))
                 file_writer.add_summary(summary, j)
 
                 # # Record batch accuracies for test code
@@ -73,7 +74,7 @@ def run_model(args):
 
             if args.train == "train":
                 # Checkpoint model - every epoch
-                utils_runtime.save_checkpoint(args, session, saver, i)
+                utils.save_checkpoint(args, session, saver, i)
             # else: # val or test
             #     test_accuracy = np.mean(batch_accuracies)
             #     print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
