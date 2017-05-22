@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import os
 from models import Config, Model
+import math
 
 XAVIER_INIT = tf.contrib.layers.xavier_initializer
 
@@ -36,7 +37,7 @@ class RecurrentCNN(Model):
 		self.reuse = reuse
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
 		self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,)+ self.config.init_loc_size))
-		self.targets_placeholder = tf.placeholder(tf.int32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
 
@@ -185,13 +186,20 @@ class RecurrentCNN(Model):
 
 		location_samples = tf.reshape(location_samples, logits_shape)
 
-		rewards = - tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=2,keep_dims=True) - \
+		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=2,keep_dims=True) - \
 					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=2,keep_dims=True)
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
+		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
+		rewards_grad_op = tf.stop_gradient(rewards)
+
 		tvars = tf.trainable_variables()
-		self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards - timestep_rewards),axis=1),axis=0)
+		density_func = 1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp(-tf.square(location_samples - self.logits)/(2*(self.config.variance)**2))
+		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
+		# 									axis=1),axis=0)
+		self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum(density_func*(rewards_grad_op - timestep_rewards_grad_op),
+											axis=1),axis=0)
 		self.total_rewards = tf.reduce_sum(timestep_rewards)
 
 
