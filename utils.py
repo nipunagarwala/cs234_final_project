@@ -9,8 +9,8 @@ from RecurrentCNN import *
 from VisualAttention import *
 
 # TODO: change according to data directories
-TRAIN_DATA = '/data/MOT17/data/train/' 
-# TRAIN_DATA = '/data/vot2017/data/train/'
+# TRAIN_DATA = '/data/MOT17/data/train/' 
+TRAIN_DATA = '/data/vot2017/data/train/'
 TEST_DATA = '/data/vot2017/data/test/'
 # VALIDATION_DATA = '/data/validation_data/'
 SUMMARY_DIR = '/data/summary'
@@ -104,8 +104,8 @@ def choose_model(args): # pass in necessary model parameters (...)
     is_training = args.train == 'train' # boolean that certain models may require
 
     if args.model == 'rnn_rcnn':
-        features_shape = (240, 384, 3) # MOT17
-        # features_shape = (180, 320, 3) # vot2017
+        # features_shape = (240, 384, 3) # MOT17
+        features_shape = (180, 320, 3) # vot2017
         num_classes = 4
         seq_len = 8
 

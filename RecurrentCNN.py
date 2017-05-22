@@ -198,7 +198,7 @@ class RecurrentCNN(Model):
 		density_func = 1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp(-tf.square(location_samples - self.logits)/(2*(self.config.variance)**2))
 		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
 		# 									axis=1),axis=0)
-		self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum(density_func*(rewards_grad_op - timestep_rewards_grad_op),
+		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(rewards_grad_op - timestep_rewards_grad_op),
 											axis=1),axis=0)
 		self.total_rewards = tf.reduce_sum(timestep_rewards)
 
