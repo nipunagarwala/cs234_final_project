@@ -41,8 +41,7 @@ def get_gt_labels(gt_filename):
     with open(gt_filename, "r") as f:
         for line in f:
             split_line = map(float, line.strip().split(","))
-            values = split_line[0:2] + split_line[-2:]
-            labels.append(values)
+            labels.append(split_line)
     return labels
 
 if __name__ == "__main__":
