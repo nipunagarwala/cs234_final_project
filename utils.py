@@ -78,7 +78,7 @@ def parse_command_line():
 
     parser.add_argument('-data', dest='data_dir', default=TRAIN_DATA, help='Specify the train data directory')
     parser.add_argument('-o', dest='override', action="store_true", help='Override the checkpoints')
-    parser.add_argument('-e', dest='num_epochs', default=10, type=int, help='Set the number of Epochs')
+    parser.add_argument('-e', dest='num_epochs', default=50, type=int, help='Set the number of Epochs')
     parser.add_argument('-ckpt', dest='ckpt_dir', default='/data/ckpts/temp_ckpt/', type=str, help='Set the checkpoint directory')
 
     args = parser.parse_args()

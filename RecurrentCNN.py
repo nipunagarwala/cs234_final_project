@@ -25,11 +25,12 @@ class RecurrentCNNConfig(Config):
 		self.init_state_out_size = 128
 		self.cnn_out_shape = 128
 		self.variance = 1e-2
+		self.num_samples = 5
 
 
 class RecurrentCNN(Model):
 
-	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=1, reuse=False, add_bn=False,
+	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=8, reuse=False, add_bn=False,
 				add_reg=False, scope='RCNN'):
 		self.config = RecurrentCNNConfig()
 		self.config.features_shape = features_shape
@@ -174,7 +175,7 @@ class RecurrentCNN(Model):
 		with tf.variable_scope(self.rnn_scope):
 			rnn_output = self.build_rnn(obs_outputs)
 
-		self.logits = rnn_output
+		self.logits = tf.nn.sigmoid(rnn_output)
 
 
 	def add_loss_op(self):
@@ -182,23 +183,29 @@ class RecurrentCNN(Model):
 		logits_flat = tf.reshape(self.logits, [-1])
 		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
 									diag_stdev=self.config.variance*tf.identity(logits_flat))
-		location_samples = location_dist.sample([1])
+		location_samples = location_dist.sample([self.config.num_samples])
 
-		location_samples = tf.reshape(location_samples, logits_shape)
+		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
+		location_samples = tf.reshape(location_samples, new_logits_shape)
 
-		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=2,keep_dims=True) - \
-					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=2,keep_dims=True)
+		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
+		tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
+
 		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
 		rewards_grad_op = tf.stop_gradient(rewards)
+		location_samples_op = tf.stop_gradient(location_samples)
+		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
+		
 
 		tvars = tf.trainable_variables()
-		density_func = 1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp(-tf.square(location_samples - self.logits)/(2*(self.config.variance)**2))
+		density_func = tf.log(1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp((-tf.square(location_samples_op - self.logits))/(2*(self.config.variance)**2)))
 		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
 		# 									axis=1),axis=0)
-		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(rewards_grad_op - timestep_rewards_grad_op),
+		self.loss = tf.reduce_mean(tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
 											axis=1),axis=0)
 		self.total_rewards = tf.reduce_sum(timestep_rewards)
 
@@ -240,7 +247,7 @@ class RecurrentCNN(Model):
 		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
 		bottom = tf.minimum(p_bottom, g_bottom)
 
-		intersection = (right - left) * (top - bottom)
+		intersection = (right - left) * (bottom - top)
 		p_area = self.logits[:, :, 3] * self.logits[:, :, 2]
 		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
 		union = p_area + g_area - intersection
