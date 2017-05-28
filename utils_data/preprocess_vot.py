@@ -76,8 +76,8 @@ def normalize_training_set(images, mean, stdev, size):
         np.save(output_filename, img, allow_pickle=False)
 
 def preprocess_label(gt_path, orig_shape, height, width, offset_height, offset_width):
-    scale = [orig_shape[1], orig_shape[0]] * 4
-    offset = [offset_width/float(width), offset_height/float(height)] * 4
+    scale = [orig_shape[0], orig_shape[1]] * 2
+    offset = [offset_height/float(height), offset_width/float(width)] * 2
     normalized_lines = ""
     output_file = os.path.join(os.path.dirname(gt_path), "groundtruth_norm.txt")
     info_file = os.path.join(os.path.dirname(gt_path), "info.txt")
@@ -88,9 +88,21 @@ def preprocess_label(gt_path, orig_shape, height, width, offset_height, offset_w
             if len(split_line) != 8:
                 print gt_path
                 return
-            normalized = map(add, map(lambda x,y: x/y, split_line, scale), offset)
+            xmax = max(split_line[0::2])
+            xmin = min(split_line[0::2])
+            ymax = max(split_line[1::2])
+            ymin = min(split_line[1::2])
+            height = ymax - ymin
+            width = xmax - xmin
+            #print scale
+            #print split_line
+            #print xmax, xmin, ymax, ymin, height, width
+            newbbox = [ymin, xmin, height, width]
+            normalized = map(add, map(lambda x,y: x/y, newbbox, scale), offset)
             new_line = ",".join([format(x, "0.6f") for x in normalized]) + "\n"
             normalized_lines += new_line
+            #print newbbox
+            #print normalized
             num_lines += 1
     with open(output_file, "w") as of:
         of.write(normalized_lines)
