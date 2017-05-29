@@ -38,6 +38,7 @@ class Seq2SeqCritic(Model):
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
 		self.reuse = reuse
+		self.input_size = tuple((None,None,)+ self.config.features_shape )
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
 		self.targets_placeholder = tf.placeholder(tf.int32, shape=tuple((None,None,) + self.config.targets_shape))
 		self.config.seq_len = seq_len
@@ -68,8 +69,9 @@ class Seq2SeqCritic(Model):
 	def build_model(self):
 		with tf.variable_scope(self.scope):
 			def output_fn(outputs):
-					return tf.contrib.layers.linear(outputs, self.config.vocab_size, scope=scope)
+					return tf.contrib.layers.linear(outputs, 1, scope=scope)
 
+			self.loss_weights = tf.ones([self.config.batch_size, self.input_size], dtype=tf.float32, name="loss_weights")
 			encoder_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_cell(num_units = self.config.hidden_size) for _ in
 										range(self.config.num_layers)], state_is_tuple=True)
 			decoder_multi = tf.contrib.rnn.MultiRNNCell([self.decoder_cell(num_units = self.config.hidden_size) for _ in
@@ -90,13 +92,12 @@ class Seq2SeqCritic(Model):
 
 			decoder_fn_inference = seq2seq.attention_decoder_fn_inference( output_fn=output_fn, encoder_state=self.encoder_state,
 							attention_keys=attention_keys, attention_values=attention_values, attention_score_fn=attention_score_fn,
-							attention_construct_fn=attention_construct_fn, embeddings=self.embedding_matrix,
-							start_of_sequence_id=self.config.start_encode, end_of_sequence_id=self.config.end_encode,
+							attention_construct_fn=attention_construct_fn,
 							maximum_length=tf.reduce_max(self.num_decode), num_decoder_symbols=1)
 			
 			self.decoder_outputs_train, self.decoder_state_train, \
 				self.decoder_context_state_train =  seq2seq.dynamic_rnn_decoder( cell=self.decoder_cell,
-							decoder_fn=decoder_fn_train, inputs=self.decoder_inputs_embedded,
+							decoder_fn=decoder_fn_train, inputs=self.targets_placeholder,
 							sequence_length=self.num_decode, time_major=True, scope=scope)
 
 			scope.reuse_variables()
@@ -111,9 +112,14 @@ class Seq2SeqCritic(Model):
 
 
 	def add_loss_op(self):
-		self.logits = tf.transpose(self.decoder_logits_train, [1, 0, 2])
-		self.loss_op = seq2seq.sequence_loss(logits=logits, targets=targets,
-										  weights=self.loss_weights)
+		logits = tf.transpose(self.decoder_logits_train, [1, 0, 2])
+		targets = tf.transpose(self.targets_placeholder, [1, 0])
+		
+		rewards = -tf.reduce_mean(tf.abs(self.inputs_placeholder - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+					tf.reduce_max(tf.abs(self.inputs_placeholder - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+
+		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+
 		tf.summary.scalar('Loss', self.loss_op)
 
 	def add_optimizer_op(self):
@@ -122,7 +128,10 @@ class Seq2SeqCritic(Model):
 
 	# def add_error_op(self):
 
-	# def add_feed_dict(self, input_batch, target_batch, seq_len_batch):
+	def add_feed_dict(self, input_batch, target_batch, seq_len_batch ):
+		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch,
+						self.init_loc:init_locations_batch, self.seq_len_placeholder:seq_len_batch}
+		return feed_dict
 
 	# def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 
@@ -131,7 +140,8 @@ class Seq2SeqCritic(Model):
 
 	# def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 
-	# def get_config(self):
+	def get_config(self):
+		return self.config
 
 
 
