@@ -199,7 +199,7 @@ class RecurrentCNN(Model):
 		rewards_grad_op = tf.stop_gradient(rewards)
 		location_samples_op = tf.stop_gradient(location_samples)
 		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
-		
+
 
 		tvars = tf.trainable_variables()
 		density_func = tf.log(1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp((-tf.square(location_samples_op - self.logits))/(2*(self.config.variance)**2)))
@@ -225,7 +225,6 @@ class RecurrentCNN(Model):
  		# average count of number of resets (0 overlap in predicted and actual)
 
 		# y, x, height, width
-		# Normalized outputs --> normalized area
 		# left = x
 		# right = x + width
 		# top = y
@@ -268,7 +267,8 @@ class RecurrentCNN(Model):
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 		# Accuracy
-		_, loss, rewards, area_accuracy = session.run([self.train_op, self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		_, logits, loss, rewards, area_accuracy = session.run([self.train_op, self.logits, self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		print("Logits: {0}".format(logits))
 		# TODO: Run summary as well, once we implement summaries.
 		return None, loss, rewards, area_accuracy
 
@@ -276,7 +276,7 @@ class RecurrentCNN(Model):
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
-		loss, area_accuracy = session.run([self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		loss, rewards, area_accuracy = session.run([self.loss, self.total_rewards, self.area_accuracy], feed_dict)
 		# TODO: Run summary as well, once we implement summaries.
 		return None, loss, rewards, area_accuracy
 
