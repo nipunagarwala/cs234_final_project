@@ -233,23 +233,31 @@ class RecurrentCNN(Model):
 		p_left = self.logits[:, :, 1]
 		g_left = self.targets_placeholder[:, :, 1]
 		left = tf.maximum(p_left, g_left)
+		self.left = left
 
 		p_right = self.logits[:, :, 1] + self.logits[:, :, 3]
+		self.p_right = p_right
 		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		self.g_right = g_right
 		right = tf.minimum(p_right, g_right)
+		self.right = right
 
 		p_top = self.logits[:, :, 0]
 		g_top = self.targets_placeholder[:, :, 0]
 		top = tf.maximum(p_top, g_top)
+		self.top = top
 
 		p_bottom = self.logits[:, :, 0] + self.logits[:, :, 2]
 		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
 		bottom = tf.minimum(p_bottom, g_bottom)
+		self.bottom = bottom
 
-		intersection = (right - left) * (bottom - top)
+		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
+		self.intersection = intersection
 		p_area = self.logits[:, :, 3] * self.logits[:, :, 2]
 		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
 		union = p_area + g_area - intersection
+		self.union = union
 
 		self.area_accuracy = tf.reduce_mean(intersection / union)
 
@@ -266,10 +274,37 @@ class RecurrentCNN(Model):
 
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
-		# Accuracy
-		_, logits, loss, rewards, area_accuracy = session.run([self.train_op, self.logits, self.loss, self.total_rewards, self.area_accuracy], feed_dict)
-		print("Logits: {0}".format(logits))
-		# TODO: Run summary as well, once we implement summaries.
+
+		# _, logits, targets, left, p_right, g_right, right, top, bottom, intersection, union, loss, rewards, area_accuracy = session.run([
+		_, loss, rewards, area_accuracy = session.run([
+				self.train_op,
+				# self.logits,
+				# self.targets_placeholder,
+				# self.left,
+				# self.p_right,
+				# self.g_right,
+				# self.right,
+				# self.top,
+				# self.bottom,
+				# self.intersection,
+				# self.union,
+				self.loss,
+				self.total_rewards,
+				self.area_accuracy],
+				feed_dict
+		)
+		# print("Right: {0}".format(right))
+		# print("P-Right: {0}".format(p_right))
+		# print("G-Right: {0}".format(g_right))
+		# print("Right: {0}".format(right))
+		# print("Top: {0}".format(top))
+		# print("Bottom: {0}".format(bottom))
+		# print("Intersection: {0}".format(intersection))
+		# print("Union: {0}".format(union))
+		#
+		# print("Logits: {0}".format(logits))
+		# print("Targets: {0}".format(targets))
+
 		return None, loss, rewards, area_accuracy
 
 
@@ -277,7 +312,7 @@ class RecurrentCNN(Model):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
 		loss, rewards, area_accuracy = session.run([self.loss, self.total_rewards, self.area_accuracy], feed_dict)
-		# TODO: Run summary as well, once we implement summaries.
+
 		return None, loss, rewards, area_accuracy
 
 
