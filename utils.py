@@ -72,7 +72,7 @@ def parse_command_line():
     print("Parsing Command Line Arguments...")
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
-    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "visual_attention"], type=str,
+    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention"], type=str,
                         dest='model', required=True, help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
     requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
@@ -121,6 +121,25 @@ def choose_model(args): # pass in necessary model parameters (...)
                         scope="rnn_rcnn")
         model.build_model()
         model.add_loss_op()
+        model.add_error_op()
+        model.add_optimizer_op()
+        model.add_summary_op()
+    elif args.model == 'rnn_rcnn_cumsum':
+        features_shape = (180, 320, 3) # vot2017
+        num_classes = 4
+        seq_len = 8
+
+        model = RecurrentCNN(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        deeper = True,
+                        scope="rnn_rcnn_cumsum")
+        model.build_model()
+        model.add_cumsum_loss_op()
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()

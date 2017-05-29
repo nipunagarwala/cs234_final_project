@@ -15,7 +15,7 @@ class RecurrentCNNConfig(Config):
 		self.l2_lambda = 0.0000001
 		self.hidden_size = 128
 		self.num_epochs = 50
-		self.num_layers = 3
+		self.num_layers = 2
 		self.num_classes = 4 # Mean vector of size 4
 		self.features_shape = (100,100,3) #TO FIX!!!!
 		self.targets_shape = (4,)
@@ -31,7 +31,7 @@ class RecurrentCNNConfig(Config):
 class RecurrentCNN(Model):
 
 	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=8, reuse=False, add_bn=False,
-				add_reg=False, scope='RCNN'):
+				add_reg=False, deeper = False, scope='RCNN'):
 		self.config = RecurrentCNNConfig()
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
@@ -41,6 +41,7 @@ class RecurrentCNN(Model):
 		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
+		self.deeper = deeper
 
 		self.scope = scope
 		if add_bn:
@@ -62,39 +63,66 @@ class RecurrentCNN(Model):
 		else:
 			raise ValueError('Input correct cell type')
 
+	def conv_layer(self, inputs, outputs, kernel_size, stride, reuse, scope):
+		return tf.contrib.layers.conv2d(inputs=inputs, num_outputs=outputs, kernel_size=kernel_size,
+								stride=stride,padding='SAME',rate=1,activation_fn=tf.nn.relu,
+								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+								reuse = reuse, scope=scope, trainable=True)
+
 
 	def build_cnn(self, cur_inputs, reuse=False, scope=None):
 		with tf.variable_scope(scope):
-			conv_out1 = tf.contrib.layers.conv2d(inputs=cur_inputs, num_outputs=32, kernel_size=[3,3],
-								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = reuse, scope='conv1', trainable=True)
-
-			conv_out2 = tf.contrib.layers.conv2d(inputs=conv_out1, num_outputs=32, kernel_size=[3,3],
-								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = reuse,scope='conv2', trainable=True)
+			conv_out1 = self.conv_layer(cur_inputs, 32, [3,3], [1,1], reuse, 'conv1')
+			conv_out2 = self.conv_layer(conv_out1, 32, [3,3], [1,1], reuse, 'conv2')
 
 			max_pool1 = tf.contrib.layers.max_pool2d(inputs=conv_out2, kernel_size=[3,3],stride=[2,2],
 								scope='maxpool1', padding='SAME')
-
-			conv_out3 = tf.contrib.layers.conv2d(inputs=max_pool1, num_outputs=32, kernel_size=[3,3],
-								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = reuse,scope='conv3', trainable=True)
-
-			conv_out4 = tf.contrib.layers.conv2d(inputs=conv_out3, num_outputs=32, kernel_size=[3,3],
-								stride=[1,1],padding='SAME',rate=1,activation_fn=tf.nn.relu,
-								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-								reuse = reuse,scope='conv4', trainable=True)
+			conv_out3 = self.conv_layer(max_pool1, 32, [3,3], [1,1], reuse, 'conv3')
+			conv_out4 = self.conv_layer(conv_out3, 32, [3,3], [1,1], reuse, 'conv4')
 
 			max_pool2 = tf.contrib.layers.max_pool2d(inputs=conv_out4, kernel_size=[3,3],stride=[2,2],
 										scope='maxpool1',padding='SAME')
 			flatten_out = tf.contrib.layers.flatten(max_pool2,scope='flatten')
+
+			fc1 = tf.contrib.layers.fully_connected(inputs=flatten_out, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									reuse = reuse,scope='fc1',trainable=True)
+			fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									reuse = reuse,scope='fc2',trainable=True)
+
+		cnn_out = fc2
+		return cnn_out
+
+	def build_deeper_cnn(self, cur_inputs, reuse=False, scope=None):
+		with tf.variable_scope(scope):
+			conv_out1 = self.conv_layer(cur_inputs, 32, [3,3], [1,1], reuse, 'conv1')
+			conv_out2 = self.conv_layer(conv_out1, 32, [3,3], [1,1], reuse, 'conv2')
+
+			max_pool1 = tf.contrib.layers.max_pool2d(inputs=conv_out2, kernel_size=[3,3],stride=[1,1],
+								scope='maxpool1', padding='SAME')
+			conv_out3 = self.conv_layer(max_pool1, 32, [3,3], [1,1], reuse, 'conv3')
+			conv_out4 = self.conv_layer(conv_out3, 32, [3,3], [1,1], reuse, 'conv4')
+
+			max_pool2 = tf.contrib.layers.max_pool2d(inputs=conv_out4, kernel_size=[3,3],stride=[2,2],
+										scope='maxpool2',padding='SAME')
+
+			conv_out5 = self.conv_layer(max_pool2, 32, [3,3], [1,1], reuse, 'conv5')
+			conv_out6 = self.conv_layer(conv_out5, 32, [3,3], [1,1], reuse, 'conv6')
+
+			max_pool3 = tf.contrib.layers.max_pool2d(inputs=conv_out6, kernel_size=[3,3],stride=[1,1],
+										scope='maxpool3',padding='SAME')
+
+			conv_out7 = self.conv_layer(max_pool3, 32, [3,3], [1,1], reuse, 'conv7')
+			conv_out8 = self.conv_layer(conv_out7, 32, [3,3], [1,1], reuse, 'conv8')
+
+			max_pool4 = tf.contrib.layers.max_pool2d(inputs=conv_out8, kernel_size=[3,3],stride=[2,2],
+										scope='maxpool4',padding='SAME')
+
+			flatten_out = tf.contrib.layers.flatten(max_pool4,scope='flatten')
 
 			fc1 = tf.contrib.layers.fully_connected(inputs=flatten_out, num_outputs=self.config.cnn_out_shape,activation_fn=tf.nn.relu,
 									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
@@ -164,9 +192,14 @@ class RecurrentCNN(Model):
 				reuse = True
 				st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
 
-			concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
-									 axis=1)
-			obs_outputs.append(concat_result)
+			if not self.deeper:
+				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
+										 axis=1)
+				obs_outputs.append(concat_result)
+			else:
+				concat_result = tf.concat([self.build_deeper_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
+										 axis=1)
+				obs_outputs.append(concat_result)
 
 		obs_outputs = tf.stack(obs_outputs, axis=1)
 
@@ -212,6 +245,38 @@ class RecurrentCNN(Model):
 		self.loss = tf.reduce_mean(tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
 											axis=1),axis=0)
 		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=2), axis=1)
+
+	def add_cumsum_loss_op(self):
+		logits_shape = tf.shape(self.logits)
+		logits_flat = tf.reshape(self.logits, [-1])
+		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
+									diag_stdev=self.config.variance*tf.identity(logits_flat))
+		location_samples = location_dist.sample([self.config.num_samples])
+
+		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
+		location_samples = tf.reshape(location_samples, new_logits_shape)
+
+		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+
+		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+
+		tot_cum_rewards = tf.cumsum(rewards, axis=2, reverse=True)
+
+		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
+		rewards_grad_op = tf.stop_gradient(rewards)
+		location_samples_op = tf.stop_gradient(location_samples)
+		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
+
+
+		tvars = tf.trainable_variables()
+		density_func = tf.log(1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp((-tf.square(location_samples_op - self.logits))/(2*(self.config.variance)**2)))
+		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
+		# 									axis=1),axis=0)
+		self.loss = tf.reduce_mean(tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
+											axis=1),axis=0)
+		self.total_rewards = tf.reduce_sum(timestep_rewards)
+
 
 
 	def add_optimizer_op(self):
