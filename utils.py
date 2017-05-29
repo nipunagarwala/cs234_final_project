@@ -124,6 +124,24 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
+    elif args.model == 'rnn_rcnn_cumsum':
+        features_shape = (180, 320, 3) # vot2017
+        num_classes = 4
+        seq_len = 8
+
+        model = RecurrentCNN(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        scope="rnn_rcnn_cumsum")
+        model.build_model()
+        model.add_cumsum_loss_op()
+        model.add_error_op()
+        model.add_optimizer_op()
+        model.add_summary_op()
     elif args.model == 'visual_attention':
         pass
     elif args.model == 'other':
