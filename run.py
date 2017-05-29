@@ -64,7 +64,7 @@ def run_model(args):
                 summary, loss, rewards, area_accuracy = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
                 print("Loss of the current batch is {0}".format(loss))
                 print("Finished batch {0}/{1}".format(j,len(batched_data)))
-                print("Cumulative average rewards for batch: {0}".format(rewards))
+                print("Total rewards: {0}".format(rewards))
                 print("Average area accuracy per sequence per batch: {0}".format(area_accuracy))
                 file_writer.add_summary(summary, j)
 
