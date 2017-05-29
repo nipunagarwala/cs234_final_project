@@ -209,6 +209,38 @@ class RecurrentCNN(Model):
 											axis=1),axis=0)
 		self.total_rewards = tf.reduce_sum(timestep_rewards)
 
+	def add_cumsum_loss_op(self):
+		logits_shape = tf.shape(self.logits)
+		logits_flat = tf.reshape(self.logits, [-1])
+		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
+									diag_stdev=self.config.variance*tf.identity(logits_flat))
+		location_samples = location_dist.sample([self.config.num_samples])
+
+		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
+		location_samples = tf.reshape(location_samples, new_logits_shape)
+
+		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+
+		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+
+		tot_cum_rewards = tf.cumsum(rewards, axis=2, reverse=True)
+
+		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
+		rewards_grad_op = tf.stop_gradient(rewards)
+		location_samples_op = tf.stop_gradient(location_samples)
+		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
+
+
+		tvars = tf.trainable_variables()
+		density_func = tf.log(1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp((-tf.square(location_samples_op - self.logits))/(2*(self.config.variance)**2)))
+		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
+		# 									axis=1),axis=0)
+		self.loss = tf.reduce_mean(tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
+											axis=1),axis=0)
+		self.total_rewards = tf.reduce_sum(timestep_rewards)
+
+
 
 	def add_optimizer_op(self):
 		tvars = tf.trainable_variables()
