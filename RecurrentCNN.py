@@ -41,6 +41,7 @@ class RecurrentCNN(Model):
 		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
+		self.deeper = deeper
 
 		self.scope = scope
 		if add_bn:
@@ -191,7 +192,7 @@ class RecurrentCNN(Model):
 				reuse = True
 				st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
 
-			if not deeper:
+			if not self.deeper:
 				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
 										 axis=1)
 				obs_outputs.append(concat_result)

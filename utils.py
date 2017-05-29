@@ -72,7 +72,7 @@ def parse_command_line():
     print("Parsing Command Line Arguments...")
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
-    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "visual_attention"], type=str,
+    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention"], type=str,
                         dest='model', required=True, help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
     requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
