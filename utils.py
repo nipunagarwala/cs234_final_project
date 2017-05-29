@@ -9,9 +9,11 @@ from RecurrentCNN import *
 from VisualAttention import *
 
 # TODO: change according to data directories
-# TRAIN_DATA = '/data/MOT17/data/train/' 
-TRAIN_DATA = '/data/vot2017/data/train/'
-TEST_DATA = '/data/vot2017/data/test/'
+# TRAIN_DATA = '/data/MOT17/data/train/'
+# TRAIN_DATA = '/data/vot2017/data/train/'
+# TEST_DATA = '/data/vot2017/data/test/'
+TRAIN_DATA = '/data/newvot2017/data/train/'
+TEST_DATA = '/data/newvot2017/data/test/'
 # VALIDATION_DATA = '/data/validation_data/'
 SUMMARY_DIR = '/data/summary'
 
