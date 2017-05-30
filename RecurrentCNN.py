@@ -221,8 +221,30 @@ class RecurrentCNN(Model):
 		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
 		location_samples = tf.reshape(location_samples, new_logits_shape)
 
-		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+		rewards_orig = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
 					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+		p_left = location_samples[:, :, :, 1]
+		g_left = self.targets_placeholder[:, :, 1]
+		left = tf.maximum(p_left, g_left)
+		p_right = location_samples[:, :, :, 1] + location_samples[:, :, :, 3]
+		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		right = tf.minimum(p_right, g_right)
+		p_top = location_samples[:, :, :, 0]
+		g_top = self.targets_placeholder[:, :, 0]
+		top = tf.maximum(p_top, g_top)
+		p_bottom = location_samples[:, :, :, 0] + location_samples[:, :, :, 2]
+		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		bottom = tf.minimum(p_bottom, g_bottom)
+		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
+		p_area = location_samples[:, :, :, 3] * location_samples[:, :, :, 2]
+		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		union = p_area + g_area - intersection
+
+		rewards_miuo = intersection / union
+		rewards_miou = tf.expand_dims(rewards, axis=-1)
+
+		# Edit this!
+		rewards = rewards_miou
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
@@ -233,14 +255,18 @@ class RecurrentCNN(Model):
 		location_samples_op = tf.stop_gradient(location_samples)
 		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
 
-
 		tvars = tf.trainable_variables()
-		density_func = tf.log(1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp((-tf.square(location_samples_op - self.logits))/(2*(self.config.variance)**2)))
+
+		const1 = 1.0 / (np.sqrt(2.0 * math.pi) * self.config.variance)
+		const2 = 2.0 * self.config.variance**2
+		squared_diff = tf.square(location_samples_op - self.logits)
+
+		density_func = tf.log(const1 * tf.exp(-squared_diff / const2))
 		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
 		# 									axis=1),axis=0)
-		self.loss = tf.reduce_mean(tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
-											axis=1),axis=0)
-		self.total_rewards = tf.reduce_sum(timestep_rewards)
+		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
+											axis=[1, 0])
+		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=2), axis=1)
 
 	def add_cumsum_loss_op(self):
 		logits_shape = tf.shape(self.logits)
