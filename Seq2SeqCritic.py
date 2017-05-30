@@ -40,13 +40,16 @@ class Seq2SeqCritic(Model):
 		self.reuse = reuse
 		self.input_size = tuple((None,None,)+ self.config.features_shape )
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
-		self.targets_placeholder = tf.placeholder(tf.int32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.loc_dist = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
+
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
 		self.num_encode = tf.placeholder(tf.int32, shape=(None,), name='Num_encode')
 		self.num_decode = tf.placeholder(tf.int32, shape=(None,),  name='Num_decode')
 
 		self.scope = scope
+		self.attn_length = 4
 
 		if add_reg:
 			self.reg_fn = tf.nn.l2_loss
@@ -55,12 +58,18 @@ class Seq2SeqCritic(Model):
 
 		if cell_type == 'rnn':
 			self.encoder_cell = tf.contrib.rnn.RNNCell
+			self.encoder_attention = tf.contrib.rnn.AttentionCellWrapper(self.encoder_cell(num_units = self.config.hidden_size), 
+											self.attn_length, state_is_tuple=True)
 			self.decoder_cell = tf.contrib.rnn.RNNCell
 		elif cell_type == 'gru':
 			self.encoder_cell = tf.contrib.rnn.GRUCell
+			self.encoder_attention = tf.contrib.rnn.AttentionCellWrapper(self.encoder_cell(num_units = self.config.hidden_size), 
+											self.attn_length, state_is_tuple=True)
 			self.decoder_cell = tf.contrib.rnn.GRUCell
 		elif cell_type == 'lstm':
 			self.encoder_cell = tf.contrib.rnn.LSTMCell
+			self.encoder_attention = tf.contrib.rnn.AttentionCellWrapper(self.encoder_cell(num_units = self.config.hidden_size), 
+											self.attn_length, state_is_tuple=True)
 			self.decoder_cell = tf.contrib.rnn.LSTMCell
 		else:
 			raise ValueError('Input correct cell type')
@@ -72,53 +81,36 @@ class Seq2SeqCritic(Model):
 					return tf.contrib.layers.linear(outputs, 1, scope=scope)
 
 			self.loss_weights = tf.ones([self.config.batch_size, self.input_size], dtype=tf.float32, name="loss_weights")
-			encoder_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_cell(num_units = self.config.hidden_size) for _ in
+			encoder_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_attention for _ in
 										range(self.config.num_layers)], state_is_tuple=True)
 			decoder_multi = tf.contrib.rnn.MultiRNNCell([self.decoder_cell(num_units = self.config.hidden_size) for _ in
 										range(self.config.num_layers)], state_is_tuple=True)
 
 			self.encoder_outputs, self.encoder_state = tf.nn.dynamic_rnn(cell=encoder_multi, inputs=self.inputs_placeholder,
 								  sequence_length=self.seq_len_placeholder,time_major=True, dtype=tf.float32) #initial_state=initial_tuple)
-			attention_states = tf.transpose(self.encoder_outputs, [1, 0, 2])
-
-			attention_keys, attention_values, attention_score_fn, \
-						attention_construct_fn = seq2seq.prepare_attention( attention_states=attention_states,
-											attention_option=self.attention_option, num_units=self.config.hidden_size)
-
-			decoder_fn_train = seq2seq.attention_decoder_fn_train( encoder_state=self.encoder_state,
-							attention_keys=attention_keys, attention_values=attention_values,
-							attention_score_fn=attention_score_fn, attention_construct_fn=attention_construct_fn,
-							name='attention_decoder')
-
-			decoder_fn_inference = seq2seq.attention_decoder_fn_inference( output_fn=output_fn, encoder_state=self.encoder_state,
-							attention_keys=attention_keys, attention_values=attention_values, attention_score_fn=attention_score_fn,
-							attention_construct_fn=attention_construct_fn,
-							maximum_length=tf.reduce_max(self.num_decode), num_decoder_symbols=1)
 			
-			self.decoder_outputs_train, self.decoder_state_train, \
-				self.decoder_context_state_train =  seq2seq.dynamic_rnn_decoder( cell=self.decoder_cell,
-							decoder_fn=decoder_fn_train, inputs=self.targets_placeholder,
-							sequence_length=self.num_decode, time_major=True, scope=scope)
+			self.decoder_outputs, self.decoder_state = tf.nn.dynamic_rnn(cell=decoder_multi, inputs=self.targets_placeholder,
+								  sequence_length=self.seq_len_placeholder,time_major=True, dtype=tf.float32,
+								  initial_state=encoder_multi_state)
+			cur_shape = tf.shape(self.decoder_outputs)
+			rnnOut_2d = tf.reshape(self.decoder_outputs, [-1, cur_shape[2]])
 
-			scope.reuse_variables()
-
-			self.decoder_logits_inference, self.decoder_state_inference, \
-			self.decoder_context_state_inference = seq2seq.dynamic_rnn_decoder(cell=self.decoder_cell,
-					decoder_fn=decoder_fn_inference, time_major=True, scope=scope)
-
-			self.decoder_prediction_inference = tf.argmax(self.decoder_logits_inference, axis=-1,
-											 name='decoder_prediction_inference')
-
+			fc_out = tf.contrib.layers.fully_connected(inputs=rnnOut_2d, num_outputs=self.config.num_classes,
+									activation_fn=tf.nn.relu,
+									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+									scope='fc1', trainable=True)
+			self.logits = tf.reshape(logits_2d,[cur_shape[0], cur_shape[1], self.config.num_classes])	
 
 
 	def add_loss_op(self):
-		logits = tf.transpose(self.decoder_logits_train, [1, 0, 2])
-		targets = tf.transpose(self.targets_placeholder, [1, 0])
 		
-		rewards = -tf.reduce_mean(tf.abs(self.inputs_placeholder - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
-					tf.reduce_max(tf.abs(self.inputs_placeholder - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+		rewards = -tf.reduce_mean(tf.abs(self.inputs_placeholder - tf.cast(self.targets_placeholder,tf.float32)),axis=2,keep_dims=True) - \
+					tf.reduce_max(tf.abs(self.inputs_placeholder - tf.cast(self.targets_placeholder,tf.float32)), axis=2,keep_dims=True)
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+
+		pred_qt = rewards + tf.reduce_sum(self.loc_dist*self.logits, axis=2)
 
 		tf.summary.scalar('Loss', self.loss_op)
 
@@ -133,12 +125,12 @@ class Seq2SeqCritic(Model):
 						self.init_loc:init_locations_batch, self.seq_len_placeholder:seq_len_batch}
 		return feed_dict
 
-	# def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
+	# def train_one_batch(self, session, input_batch, target_batch, seq_len_batch):
 
 	# def test_one_batch(self, session, input_batch, target_batch, seq_len_batch):
 
 
-	# def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
+	# def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch):
 
 	def get_config(self):
 		return self.config
