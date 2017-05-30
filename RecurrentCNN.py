@@ -209,6 +209,7 @@ class RecurrentCNN(Model):
 			rnn_output = self.build_rnn(obs_outputs)
 
 		self.logits = tf.nn.sigmoid(rnn_output)
+		# self.logits = rnn_output
 
 
 	def add_loss_op(self):
@@ -221,26 +222,55 @@ class RecurrentCNN(Model):
 		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
 		location_samples = tf.reshape(location_samples, new_logits_shape)
 
-		rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+		rewards_orig = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
 					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
 
+		p_left = location_samples[:, :, :, 1]
+		g_left = self.targets_placeholder[:, :, 1]
+		left = tf.maximum(p_left, g_left)
+		p_right = location_samples[:, :, :, 1] + location_samples[:, :, :, 3]
+		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		right = tf.minimum(p_right, g_right)
+		p_top = location_samples[:, :, :, 0]
+		g_top = self.targets_placeholder[:, :, 0]
+		top = tf.maximum(p_top, g_top)
+		p_bottom = location_samples[:, :, :, 0] + location_samples[:, :, :, 2]
+		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		bottom = tf.minimum(p_bottom, g_bottom)
+		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
+		p_area = location_samples[:, :, :, 3] * location_samples[:, :, :, 2]
+		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		union = p_area + g_area - intersection
+
+		rewards_miuo = intersection / union
+		rewards_miou = tf.expand_dims(rewards, axis=-1)
+
+		# Edit this!
+		rewards = rewards_miou
+
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+		self.timestep_rewards = timestep_rewards
 
 		tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
+		self.tot_cum_rewards = tot_cum_rewards
 
 		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
 		rewards_grad_op = tf.stop_gradient(rewards)
 		location_samples_op = tf.stop_gradient(location_samples)
 		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
 
-
 		tvars = tf.trainable_variables()
-		density_func = tf.log(1/(np.sqrt(2*math.pi)*self.config.variance)*tf.exp((-tf.square(location_samples_op - self.logits))/(2*(self.config.variance)**2)))
+
+		const1 = 1.0 / (np.sqrt(2.0 * math.pi) * self.config.variance)
+		const2 = 2.0 * self.config.variance**2
+		squared_diff = tf.square(location_samples_op - self.logits)
+
+		density_func = tf.log(const1 * tf.exp(-squared_diff / const2))
 		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
 		# 									axis=1),axis=0)
-		self.loss = tf.reduce_mean(tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
-											axis=1),axis=0)
-		self.total_rewards = tf.reduce_sum(timestep_rewards)
+		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
+											axis=[1, 0])
+		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=2), axis=1)
 
 	def add_cumsum_loss_op(self):
 		logits_shape = tf.shape(self.logits)
@@ -341,7 +371,8 @@ class RecurrentCNN(Model):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 
 		# _, logits, targets, left, p_right, g_right, right, top, bottom, intersection, union, loss, rewards, area_accuracy = session.run([
-		_, loss, rewards, area_accuracy = session.run([
+		# _, loss, rewards, timestep_rewards, tot_cum_rewards, total_rewards, area_accuracy = session.run([
+		_, loss, total_rewards, area_accuracy = session.run([
 				self.train_op,
 				# self.logits,
 				# self.targets_placeholder,
@@ -354,10 +385,17 @@ class RecurrentCNN(Model):
 				# self.intersection,
 				# self.union,
 				self.loss,
+				# self.rewards,
+				# self.timestep_rewards,
+				# self.tot_cum_rewards,
 				self.total_rewards,
 				self.area_accuracy],
 				feed_dict
 		)
+		# print("Rewards: {0}".format(rewards))
+		# print("Timestep Rewards: {0}".format(timestep_rewards))
+		# print("Total Cumulative Rewards: {0}".format(tot_cum_rewards))
+
 		# print("Right: {0}".format(right))
 		# print("P-Right: {0}".format(p_right))
 		# print("G-Right: {0}".format(g_right))
@@ -370,7 +408,7 @@ class RecurrentCNN(Model):
 		# print("Logits: {0}".format(logits))
 		# print("Targets: {0}".format(targets))
 
-		return None, loss, rewards, area_accuracy
+		return None, loss, total_rewards, area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):

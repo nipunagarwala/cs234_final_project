@@ -118,6 +118,7 @@ def choose_model(args): # pass in necessary model parameters (...)
                         reuse=False,
                         add_bn=False,
                         add_reg=False,
+                        deeper=True,
                         scope="rnn_rcnn")
         model.build_model()
         model.add_loss_op()
