@@ -209,6 +209,7 @@ class RecurrentCNN(Model):
 			rnn_output = self.build_rnn(obs_outputs)
 
 		self.logits = tf.nn.sigmoid(rnn_output)
+		# self.logits = rnn_output
 
 
 	def add_loss_op(self):
@@ -223,6 +224,7 @@ class RecurrentCNN(Model):
 
 		rewards_orig = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
 					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+
 		p_left = location_samples[:, :, :, 1]
 		g_left = self.targets_placeholder[:, :, 1]
 		left = tf.maximum(p_left, g_left)
@@ -247,8 +249,10 @@ class RecurrentCNN(Model):
 		rewards = rewards_miou
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+		self.timestep_rewards = timestep_rewards
 
 		tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
+		self.tot_cum_rewards = tot_cum_rewards
 
 		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
 		rewards_grad_op = tf.stop_gradient(rewards)
@@ -367,7 +371,8 @@ class RecurrentCNN(Model):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 
 		# _, logits, targets, left, p_right, g_right, right, top, bottom, intersection, union, loss, rewards, area_accuracy = session.run([
-		_, loss, rewards, area_accuracy = session.run([
+		# _, loss, rewards, timestep_rewards, tot_cum_rewards, total_rewards, area_accuracy = session.run([
+		_, loss, total_rewards, area_accuracy = session.run([
 				self.train_op,
 				# self.logits,
 				# self.targets_placeholder,
@@ -380,10 +385,17 @@ class RecurrentCNN(Model):
 				# self.intersection,
 				# self.union,
 				self.loss,
+				# self.rewards,
+				# self.timestep_rewards,
+				# self.tot_cum_rewards,
 				self.total_rewards,
 				self.area_accuracy],
 				feed_dict
 		)
+		# print("Rewards: {0}".format(rewards))
+		# print("Timestep Rewards: {0}".format(timestep_rewards))
+		# print("Total Cumulative Rewards: {0}".format(tot_cum_rewards))
+
 		# print("Right: {0}".format(right))
 		# print("P-Right: {0}".format(p_right))
 		# print("G-Right: {0}".format(g_right))
@@ -396,7 +408,7 @@ class RecurrentCNN(Model):
 		# print("Logits: {0}".format(logits))
 		# print("Targets: {0}".format(targets))
 
-		return None, loss, rewards, area_accuracy
+		return None, loss, total_rewards, area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
