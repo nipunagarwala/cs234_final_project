@@ -169,7 +169,7 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_optimizer_op()
         model.add_summary_op()
     elif args.model == 'pretrained':
-        eatures_shape = (180, 320, 3) # vot2017
+        features_shape = (180, 320, 3) # vot2017
         num_classes = 4
         # features_shape = (224, 224, 3) # vot2017
         # num_classes = 1000

@@ -8,17 +8,15 @@ class YOLONet(object):
 
     def __init__(self, inputs_placeholder, is_training=False): # Dont want to train, pretrained model
 
-        # TODO: Double check these values.
-        #       Either config the right values, or
-        #       Pass in the config/values from Pretrained.py
+        # NOTE: These values are irrevelant since we stop at last conv layers
+        #       (default valeus for yolo network)
         self.image_size = 448
         self.cell_size = 7
         self.boxes_per_cell = 2
+        self.num_class = 21
         self.output_size = (self.cell_size * self.cell_size) * (self.num_class + self.boxes_per_cell * 5)
 
-        # self.batch_size = 32
         self.alpha = 0.01
-
         self.inputs_placeholder = inputs_placeholder
         self.net, self.end_points = self.build_network(self.inputs_placeholder, num_outputs=self.output_size, alpha=self.alpha, is_training=is_training)
 
