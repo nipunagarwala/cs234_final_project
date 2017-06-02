@@ -41,7 +41,7 @@ class Seq2SeqCritic(Model):
 		self.input_size = tuple((None,None,)+ self.config.features_shape )
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
 		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
-		self.loc_dist = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.loc_dist_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
@@ -92,6 +92,7 @@ class Seq2SeqCritic(Model):
 			self.decoder_outputs, self.decoder_state = tf.nn.dynamic_rnn(cell=decoder_multi, inputs=self.targets_placeholder,
 								  sequence_length=self.seq_len_placeholder,time_major=True, dtype=tf.float32,
 								  initial_state=encoder_multi_state)
+			
 			cur_shape = tf.shape(self.decoder_outputs)
 			rnnOut_2d = tf.reshape(self.decoder_outputs, [-1, cur_shape[2]])
 
@@ -110,7 +111,7 @@ class Seq2SeqCritic(Model):
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
-		pred_qt = rewards + tf.reduce_sum(self.loc_dist*self.logits, axis=2)
+		pred_qt = rewards + tf.reduce_sum(self.loc_dist_placeholder*self.logits, axis=2)
 
 		tf.summary.scalar('Loss', self.loss_op)
 
@@ -118,19 +119,19 @@ class Seq2SeqCritic(Model):
 		self.train_op = tf.train.AdamOptimizer().minimize(self.loss_op)
 
 
-	# def add_error_op(self):
+	def add_error_op(self):
 
 	def add_feed_dict(self, input_batch, target_batch, seq_len_batch ):
 		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch,
 						self.init_loc:init_locations_batch, self.seq_len_placeholder:seq_len_batch}
 		return feed_dict
 
-	# def train_one_batch(self, session, input_batch, target_batch, seq_len_batch):
+	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch):
 
-	# def test_one_batch(self, session, input_batch, target_batch, seq_len_batch):
+	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch):
 
 
-	# def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch):
+	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch):
 
 	def get_config(self):
 		return self.config
