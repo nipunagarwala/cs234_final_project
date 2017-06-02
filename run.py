@@ -8,8 +8,6 @@ import utils
 import os
 import sys
 import random
-from RecurrentCNN import *
-from VisualAttention import *
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -49,6 +47,13 @@ def run_model(args):
             if not found_ckpt:
                 print "No checkpoint found for test or validation!"
                 return
+
+        if args.model == "pretrained":
+            init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
+                                model_path='/data/yolo/YOLO_small.ckpt',
+                                var_list=model.variables_to_restore
+            )
+            init_fn(session)
 
         for i in xrange(i_stopped, args.num_epochs):
             print "Running epoch ({0})...".format(i)
