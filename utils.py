@@ -76,6 +76,9 @@ def parse_command_line():
     # TODO: add other model names
     requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention", "pretrained"], type=str,
                         dest='model', required=True, help='Type of model to run')
+    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention",
+                         "pretrained", "seq2seq_critic"], type=str, dest='model', required=True,
+                          help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
     requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
     					dest='train', required=True, help='Training or Testing phase to be run')
@@ -121,6 +124,7 @@ def choose_model(args): # pass in necessary model parameters (...)
                         add_bn=False,
                         add_reg=False,
                         deeper=True,
+                        loss_type = 'negative_l1_dist',
                         scope="rnn_rcnn")
         model.build_model()
         model.add_loss_op()
@@ -140,9 +144,11 @@ def choose_model(args): # pass in necessary model parameters (...)
                         add_bn=False,
                         add_reg=False,
                         deeper = True,
+                        loss_type = 'negative_l1_dist',
+                        cum_sum = True,
                         scope="rnn_rcnn_cumsum")
         model.build_model()
-        model.add_cumsum_loss_op()
+        model.add_loss_op()
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
@@ -167,6 +173,8 @@ def choose_model(args): # pass in necessary model parameters (...)
     elif args.model == 'pretrained':
         eatures_shape = (180, 320, 3) # vot2017
         num_classes = 4
+        # features_shape = (224, 224, 3) # vot2017
+        # num_classes = 1000
         seq_len = 8
 
         model = RecurrentVisualAttention(features_shape,

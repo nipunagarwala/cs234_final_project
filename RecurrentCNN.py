@@ -24,14 +24,14 @@ class RecurrentCNNConfig(Config):
 		self.keep_prob = 0.8
 		self.init_state_out_size = 128
 		self.cnn_out_shape = 128
-		self.variance = 1e-2
+		self.variance = 1e-1
 		self.num_samples = 5
 
 
 class RecurrentCNN(Model):
 
 	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=8, reuse=False, add_bn=False,
-				add_reg=False, deeper = False, scope='RCNN'):
+				add_reg=False, deeper = False, loss_type ='negative_l1_dist', cum_sum=False, scope='RCNN'):
 		self.config = RecurrentCNNConfig()
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
@@ -42,6 +42,8 @@ class RecurrentCNN(Model):
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
 		self.deeper = deeper
+		self.loss_type = loss_type
+		self.cumsum = cumsum
 
 		self.scope = scope
 		if add_bn:
@@ -212,46 +214,53 @@ class RecurrentCNN(Model):
 		# self.logits = rnn_output
 
 
+	def get_iou_loss(self):
+		p_left = self.location_samples[:, :, :, 1]
+		g_left = self.targets_placeholder[:, :, 1]
+		left = tf.maximum(p_left, g_left)
+		p_right = self.location_samples[:, :, :, 1] + self.location_samples[:, :, :, 3]
+		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		right = tf.minimum(p_right, g_right)
+		p_top = location_samples[:, :, :, 0]
+		g_top = self.targets_placeholder[:, :, 0]
+		top = tf.maximum(p_top, g_top)
+		p_bottom = self.location_samples[:, :, :, 0] + self.location_samples[:, :, :, 2]
+		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		bottom = tf.minimum(p_bottom, g_bottom)
+		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
+		p_area = self.location_samples[:, :, :, 3] * self.location_samples[:, :, :, 2]
+		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		union = p_area + g_area - intersection
+
+		return intersection/union
+
+
 	def add_loss_op(self):
 		logits_shape = tf.shape(self.logits)
 		logits_flat = tf.reshape(self.logits, [-1])
 		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
 									diag_stdev=self.config.variance*tf.ones_like(logits_flat))
 		location_samples = location_dist.sample([self.config.num_samples])
+		self.location_samples = location_samples
 
 		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
 		location_samples = tf.reshape(location_samples, new_logits_shape)
 
-		rewards_orig = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+		if self.loss_type == 'negative_l1_dist':
+			rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
 					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
-     
-		p_left = location_samples[:, :, :, 1]
-		g_left = self.targets_placeholder[:, :, 1]
-		left = tf.maximum(p_left, g_left)
-		p_right = location_samples[:, :, :, 1] + location_samples[:, :, :, 3]
-		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
-		right = tf.minimum(p_right, g_right)
-		p_top = location_samples[:, :, :, 0]
-		g_top = self.targets_placeholder[:, :, 0]
-		top = tf.maximum(p_top, g_top)
-		p_bottom = location_samples[:, :, :, 0] + location_samples[:, :, :, 2]
-		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
-		bottom = tf.minimum(p_bottom, g_bottom)
-		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
-		p_area = location_samples[:, :, :, 3] * location_samples[:, :, :, 2]
-		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
-		union = p_area + g_area - intersection
-
-		rewards_miuo = intersection / union
-		rewards_miou = tf.expand_dims(rewards_miuo, axis=-1)
-
-		# Edit this!
-		rewards = rewards_orig
+		elif self.loss_type == 'iou':
+			rewards = self.get_iou_loss()
+			rewards = tf.expand_dims(rewards,axis=-1)
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 		self.timestep_rewards = timestep_rewards
 
-		tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
+		if self.cumsum:
+			tot_cum_rewards = tf.cumsum(rewards, axis=2, reverse=True)
+		else:
+			tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
+		
 		self.tot_cum_rewards = tot_cum_rewards
 
 		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
@@ -259,15 +268,14 @@ class RecurrentCNN(Model):
 		location_samples_op = tf.stop_gradient(location_samples)
 		tot_cum_rewards_op = tf.stop_gradient(tot_cum_rewards)
 
-		tvars = tf.trainable_variables()
 
 		const1 = 1.0 / (np.sqrt(2.0 * math.pi) * self.config.variance)
 		const2 = 2.0 * self.config.variance**2
-		squared_diff = tf.square(location_samples_op - self.logits)
+		squared_diff = tf.square(self.targets_placeholder - self.logits)
 
 		density_func = tf.log(const1 * tf.exp(-squared_diff / const2))
-		# self.loss = 1/self.config.variance*tf.reduce_mean(tf.reduce_sum((location_samples - self.logits)*(rewards_grad_op - timestep_rewards_grad_op),
-		# 									axis=1),axis=0)
+		self.density_func = density_func
+
 		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
 											axis=[1, 0])
 		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=2), axis=1)
@@ -372,7 +380,7 @@ class RecurrentCNN(Model):
 
 		# _, logits, targets, left, p_right, g_right, right, top, bottom, intersection, union, loss, rewards, area_accuracy = session.run([
 		# _, loss, rewards, timestep_rewards, tot_cum_rewards, total_rewards, area_accuracy = session.run([
-		_, loss, total_rewards, area_accuracy = session.run([
+		_, loss, density_func, total_rewards, area_accuracy = session.run([
 				self.train_op,
 				# self.logits,
 				# self.targets_placeholder,
@@ -385,6 +393,7 @@ class RecurrentCNN(Model):
 				# self.intersection,
 				# self.union,
 				self.loss,
+				self.density_func,
 				# self.rewards,
 				# self.timestep_rewards,
 				# self.tot_cum_rewards,
@@ -392,7 +401,7 @@ class RecurrentCNN(Model):
 				self.area_accuracy],
 				feed_dict
 		)
-		# print("Rewards: {0}".format(rewards))
+		print("Density Func: {0}".format(density_func))
 		# print("Timestep Rewards: {0}".format(timestep_rewards))
 		# print("Total Cumulative Rewards: {0}".format(tot_cum_rewards))
 
@@ -429,3 +438,140 @@ class RecurrentCNN(Model):
 
 	def get_config(self):
 		return self.config
+
+
+# class ImageNetCNNConfig(Config):
+# 	def __init__(self):
+# 		self.batch_size = 32
+# 		self.lr = 1e-3
+# 		self.l2_lambda = 0.0000001
+# 		self.num_epochs = 50
+# 		self.num_classes = 1000 # Mean vector of size 4
+# 		self.features_shape = (224,224,3) #TO FIX!!!!
+# 		self.targets_shape = (None,)
+
+
+# class ImageNetCNN(Model):
+# 	def __init__(self,features_shape, num_classes,reuse=False, add_bn=False, add_reg=False, scope=None):
+# 		self.config = ImageNetCNNConfig()
+# 		self.config.features_shape = features_shape
+# 		self.config.num_classes = num_classes
+# 		self.reuse = reuse
+# 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
+# 		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple(None,))
+
+# 		self.scope = scope
+# 		if add_bn:
+# 			self.norm_fn = tf.contrib.layers.batch_norm
+# 		else:
+# 			self.norm_fn = None
+
+# 		if add_reg:
+# 			self.reg_fn = tf.nn.l2_loss
+# 		else:
+# 			self.reg_fn = None
+
+# 	def conv_layer(self, inputs, outputs, kernel_size, stride, reuse, scope):
+# 		return tf.contrib.layers.conv2d(inputs=inputs, num_outputs=outputs, kernel_size=kernel_size,
+# 								stride=stride,padding='SAME',rate=1,activation_fn=tf.nn.relu,
+# 								normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+# 								weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+# 								reuse = reuse, scope=scope, trainable=True)
+
+# 	def build_model(self):
+# 		with tf.variable_scope(self.scope):
+# 			conv_out1 = self.conv_layer(self.inputs_placeholder, 64, [7,7], [2,2], reuse, 'conv1')
+# 			max_pool1 = tf.contrib.layers.max_pool2d(inputs=conv_out1, kernel_size=[2,2],stride=[2,2],
+# 								scope='maxpool1', padding='SAME')
+
+# 			conv_out2 = self.conv_layer(conv_out1, 192, [3,3], [1,1], reuse, 'conv2')
+# 			max_pool2 = tf.contrib.layers.max_pool2d(inputs=conv_out2, kernel_size=[2,2],stride=[2,2],
+# 								scope='maxpool2', padding='SAME')
+
+# 			conv_out3 = self.conv_layer(max_pool2, 128, [1,1], [1,1], reuse, 'conv3')
+# 			conv_out4 = self.conv_layer(conv_out3, 256, [3,3], [1,1], reuse, 'conv4')
+# 			conv_out5 = self.conv_layer(conv_out4, 256, [1,1], [1,1], reuse, 'conv5')
+# 			conv_out6 = self.conv_layer(conv_out5, 512, [3,3], [1,1], reuse, 'conv6')
+
+# 			max_pool3 = tf.contrib.layers.max_pool2d(inputs=conv_out6, kernel_size=[2,2],stride=[2,2],
+# 										scope='maxpool3',padding='SAME')
+
+# 			conv_out7 = self.conv_layer(max_pool3, 256, [1,1], [1,1], reuse, 'conv7')
+# 			conv_out8 = self.conv_layer(conv_out7, 512, [3,3], [1,1], reuse, 'conv8')
+# 			conv_out9 = self.conv_layer(conv_out8, 256, [1,1], [1,1], reuse, 'conv9')
+# 			conv_out10 = self.conv_layer(conv_out9, 512, [3,3], [1,1], reuse, 'conv10')
+# 			conv_out11 = self.conv_layer(conv_out10, 256, [1,1], [1,1], reuse, 'conv11')
+# 			conv_out12 = self.conv_layer(conv_out11, 512, [3,3], [1,1], reuse, 'conv12')
+# 			conv_out13 = self.conv_layer(conv_out12, 256, [1,1], [1,1], reuse, 'conv13')
+# 			conv_out14 = self.conv_layer(conv_out13, 512, [3,3], [1,1], reuse, 'conv14')
+# 			conv_out15 = self.conv_layer(conv_out14, 1024, [3,3], [1,1], reuse, 'conv15')
+
+# 			max_pool4 = tf.contrib.layers.max_pool2d(inputs=conv_out15, kernel_size=[2,2],stride=[2,2],
+# 										scope='maxpool4',padding='SAME')
+
+# 			conv_out16 = self.conv_layer(max_pool4, 512, [1,1], [1,1], reuse, 'conv16')
+# 			conv_out17 = self.conv_layer(conv_out16, 1024, [3,3], [1,1], reuse, 'conv17')
+# 			conv_out18 = self.conv_layer(conv_out17, 512, [1,1], [1,1], reuse, 'conv18')
+# 			conv_out19 = self.conv_layer(conv_out18, 1024, [3,3], [1,1], reuse, 'conv19')
+# 			conv_out20 = self.conv_layer(conv_out19, 1024, [3,3], [1,1], reuse, 'conv20')
+# 			# conv_out21 = self.conv_layer(conv_out20, 1024, [3,3], [2,2], reuse, 'conv21')
+
+# 			# conv_out22 = self.conv_layer(conv_out21, 1024, [3,3], [1,1], reuse, 'conv22')
+# 			# conv_out23 = self.conv_layer(conv_out22, 1024, [3,3], [1,1], reuse, 'conv23')
+
+# 			self.avg_pool1 = tf.contrib.layers.avg_pool2d(inputs=conv_out20, kernel_size=[2,2],stride=[2,2],
+# 										scope='avgpool1',padding='SAME')
+
+# 			flatten_out = tf.contrib.layers.flatten(avg_pool1,scope='flatten')
+# 			self.fc1 = tf.contrib.layers.fully_connected(inputs=flatten_out, num_outputs=4096,activation_fn=None,
+# 									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+# 									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+# 									reuse = reuse,scope='fc1',trainable=True)
+# 			self.logits = fc1
+
+
+# 	def add_loss_op(self):
+# 		self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits, labels=self.targets_placeholder)
+# 		tf.summary(self.loss, "CNN_Loss")
+
+# 	def add_optimizer_op(self):
+# 		self.train_op = tf.train.AdamOptimizer(self.config.lr).minimize(self.loss)
+
+# 	def add_error_op(self):
+# 		predictions = tf.argmax(self.logits, axis=-1)
+# 		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(predictions, self.targets_placeholder), tf.float32), axis=0)
+# 		tf.summary(self.accuracy, "Accuracy")
+
+
+# 	def add_summary_op(self):
+# 		self.summary_op = tf.summary.merge_all()
+
+
+# 	def add_feed_dict(self, input_batch, target_batch):
+# 		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch}
+# 		return feed_dict
+
+# 	def train_one_batch(self, session, input_batch, target_batch):
+# 		feed_dict = self.add_feed_dict(input_batch, target_batch)
+# 		_, loss, accuracy = session.run([self.train_op, self.loss, self.accuracy], feed_dict)
+
+# 		return loss, accuracy
+
+
+# 	def test_one_batch(self, session, input_batch, target_batch):
+# 		feed_dict = self.add_feed_dict(input_batch, target_batch)
+# 		loss, accuracy = session.run([self.loss, self.accuracy], feed_dict)
+
+# 		return loss, accuracy
+
+# 	def run_one_batch(self, args, session, input_batch, target_batch):
+# 		if args.train == 'train':
+# 			loss, accuracy = self.train_one_batch(session, input_batch, target_batch)
+# 		else:
+# 			loss, accuracy = self.test_one_batch(session, input_batch, target_batch)
+
+# 		return loss, accuracy
+
+# 	def get_config(self):
+# 		return self.config
+
