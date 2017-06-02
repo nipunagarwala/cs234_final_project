@@ -33,34 +33,34 @@ class Pretrained(Model):
 		self.config = PretrainedConfig()
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
-        self.config.seq_len = seq_len
-        self.reuse = reuse
+		self.config.seq_len = seq_len
+		self.reuse = reuse
 
-        self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
-        self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,)+ self.config.init_loc_size))
-        self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
-        self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
+		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
+		self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,)+ self.config.init_loc_size))
+		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
 
-        self.scope = scope
+		self.scope = scope
 
-        if add_bn:
-            self.norm_fn = tf.contrib.layers.batch_norm
-        else:
-            self.norm_fn = None
+		if add_bn:
+			self.norm_fn = tf.contrib.layers.batch_norm
+		else:
+			self.norm_fn = None
 
-        if add_reg:
-            self.reg_fn = tf.nn.l2_loss
-        else:
-            self.reg_fn = None
+		if add_reg:
+			self.reg_fn = tf.nn.l2_loss
+		else:
+			self.reg_fn = None
 
-        if cell_type == 'rnn':
-            self.cell = tf.contrib.rnn.RNNCell
-        elif cell_type == 'gru':
-            self.cell = tf.contrib.rnn.GRUCell
-        elif cell_type == 'lstm':
-            self.cell = tf.contrib.rnn.LSTMCell
-        else:
-            raise ValueError('Input correct cell type')
+		if cell_type == 'rnn':
+			self.cell = tf.contrib.rnn.RNNCell
+		elif cell_type == 'gru':
+			self.cell = tf.contrib.rnn.GRUCell
+		elif cell_type == 'lstm':
+			self.cell = tf.contrib.rnn.LSTMCell
+		else:
+			raise ValueError('Input correct cell type')
 
 
 	def build_cnn(self, cur_inputs, reuse=False, scope=None):

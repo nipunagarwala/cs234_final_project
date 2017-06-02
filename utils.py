@@ -74,8 +74,6 @@ def parse_command_line():
     print("Parsing Command Line Arguments...")
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
-    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention", "pretrained"], type=str,
-                        dest='model', required=True, help='Type of model to run')
     requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention",
                          "pretrained", "seq2seq_critic"], type=str, dest='model', required=True,
                           help='Type of model to run')
@@ -177,7 +175,7 @@ def choose_model(args): # pass in necessary model parameters (...)
         # num_classes = 1000
         seq_len = 8
 
-        model = RecurrentVisualAttention(features_shape,
+        model = Pretrained(features_shape,
                         num_classes,
                         cell_type='lstm',
                         seq_len=seq_len,
