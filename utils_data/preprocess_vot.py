@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 import math
 from operator import add
+from PIL import Image, ImageDraw
 
 def get_sizes(path):
     shapes = set()
-    min_height = 1080
-    min_width = 1920
+    min_height = 180 # 1080
+    min_width = 320 # 1920
     for dirpath, dirnames, filenames in os.walk(path):
         if len(filenames) > 0 and filenames[0][-4:] == ".jpg":
             full_path = os.path.join(dirpath, filenames[0])
@@ -39,7 +40,7 @@ def process_vot(path, min_height, min_width):
                 images.append(output_filename)
         if img_shape:
             gt_path = os.path.join(dirpath, "groundtruth.txt")
-            preprocess_label(gt_path, img_shape, min_height, min_width, pad_height, pad_width)
+            preprocess_label(gt_path, ratio, img_shape, min_height, min_width, pad_height, pad_width)
     return images
                 
 def pad_image(img, pad_size):
@@ -75,9 +76,10 @@ def normalize_training_set(images, mean, stdev, size):
         output_filename = img_path[:-4] + "_norm"
         np.save(output_filename, img, allow_pickle=False)
 
-def preprocess_label(gt_path, orig_shape, height, width, offset_height, offset_width):
+def preprocess_label(gt_path, ratio, orig_shape, min_height, min_width, offset_height, offset_width):
+    print ratio
     scale = [orig_shape[0], orig_shape[1]] * 2
-    offset = [offset_height/float(height), offset_width/float(width)] * 2
+    offset = [offset_height/float(min_height), offset_width/float(min_width), 0, 0]
     normalized_lines = ""
     output_file = os.path.join(os.path.dirname(gt_path), "groundtruth_norm.txt")
     info_file = os.path.join(os.path.dirname(gt_path), "info.txt")
@@ -94,16 +96,36 @@ def preprocess_label(gt_path, orig_shape, height, width, offset_height, offset_w
             ymin = min(split_line[1::2])
             height = ymax - ymin
             width = xmax - xmin
-            #print scale
-            #print split_line
-            #print xmax, xmin, ymax, ymin, height, width
             newbbox = [ymin, xmin, height, width]
-            normalized = map(add, map(lambda x,y: x/y, newbbox, scale), offset)
+            normalized = map(lambda x: x*ratio, newbbox)
+            normalized = [normalized[0]/min_height , normalized[1]/min_width, normalized[2]/min_height, normalized[3]/min_width]
+            print normalized
+            normalized[0] += offset[0]
+            normalized[1] += offset[1]
+            print normalized
             new_line = ",".join([format(x, "0.6f") for x in normalized]) + "\n"
             normalized_lines += new_line
-            #print newbbox
-            #print normalized
             num_lines += 1
+            
+            '''
+            img = "VOT/tiger/" + str(num_lines).zfill(8) + ".jpg"
+            img = Image.open(img)
+            bbox = [normalized[1] * orig_shape[1], normalized[0] * orig_shape[0], (normalized[3]+normalized[1])* orig_shape[1], (normalized[2]+normalized[0])* orig_shape[0]]
+            print bbox
+            draw = ImageDraw.Draw(img)
+            draw.rectangle(bbox)
+            img.show()
+            
+            img = "VOT/tiger/" + str(num_lines).zfill(8) + "_ds.jpg"
+            img = Image.open(img)
+            print min_height, min_width
+            bbox = [min_width*normalized[1], min_height*normalized[0], min_width*(normalized[3]+normalized[1]), min_height*(normalized[2]+normalized[0])]
+            print bbox
+            draw = ImageDraw.Draw(img)
+            draw.rectangle(bbox)
+            img.show()
+            '''
+            
     with open(output_file, "w") as of:
         of.write(normalized_lines)
     with open(info_file, "w") as info:

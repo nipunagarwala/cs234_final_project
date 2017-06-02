@@ -216,7 +216,7 @@ class RecurrentCNN(Model):
 		logits_shape = tf.shape(self.logits)
 		logits_flat = tf.reshape(self.logits, [-1])
 		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
-									diag_stdev=self.config.variance*tf.identity(logits_flat))
+									diag_stdev=self.config.variance*tf.ones_like(logits_flat))
 		location_samples = location_dist.sample([self.config.num_samples])
 
 		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
@@ -224,7 +224,7 @@ class RecurrentCNN(Model):
 
 		rewards_orig = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
 					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
-
+     
 		p_left = location_samples[:, :, :, 1]
 		g_left = self.targets_placeholder[:, :, 1]
 		left = tf.maximum(p_left, g_left)
@@ -243,10 +243,10 @@ class RecurrentCNN(Model):
 		union = p_area + g_area - intersection
 
 		rewards_miuo = intersection / union
-		rewards_miou = tf.expand_dims(rewards, axis=-1)
+		rewards_miou = tf.expand_dims(rewards_miuo, axis=-1)
 
 		# Edit this!
-		rewards = rewards_miou
+		rewards = rewards_orig
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 		self.timestep_rewards = timestep_rewards

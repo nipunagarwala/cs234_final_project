@@ -7,6 +7,7 @@ import re
 
 from RecurrentCNN import *
 from VisualAttention import *
+from RecurrentVisualAttention import *
 
 # TODO: change according to data directories
 # TRAIN_DATA = '/data/MOT17/data/train/'
@@ -145,7 +146,23 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_optimizer_op()
         model.add_summary_op()
     elif args.model == 'visual_attention':
-        pass
+        features_shape = (180, 320, 3) # vot2017
+        num_classes = 4
+        seq_len = 8
+
+        model = RecurrentVisualAttention(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        scope="visual_attention")
+        model.build_model()
+        model.add_loss_op()
+        model.add_error_op()
+        model.add_optimizer_op()
+        model.add_summary_op()
     elif args.model == 'other':
         pass
 
