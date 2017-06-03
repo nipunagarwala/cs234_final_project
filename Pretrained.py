@@ -3,8 +3,10 @@ import tensorflow as tf
 import numpy as np
 import os
 from yolo import YOLONet
+import math
 
 
+slim = tf.contrib.slim
 XAVIER_INIT = tf.contrib.layers.xavier_initializer
 
 
@@ -69,20 +71,29 @@ class Pretrained(Model):
 	def build_cnn(self, cur_inputs, reuse=False, scope=None):
 		with tf.variable_scope(scope) as sc:
 			yolo = YOLONet(cur_inputs)
-			encoded_layer_name = '/'.join([scope, 'yolo', 'fc_33'])
+			encoded_layer_name = '/'.join([scope, 'yolo', 'conv_30'])
 			encoded_layer = yolo.end_points[encoded_layer_name]
 
-			self.variables_to_restore = {}
-			for variable in slim.get_variables(sc):
-				layer_num = int(variable.name.split("_")[-1])
-				if layer_num > 33:
-					continue
-				print sc.original_name_scope
-				ckpt_string = variable.name[len(sc.original_name_scope)+1:-2]
-				self.variables_to_restore[ckpt_string] = variable
+			# Per YOLO network architecture - these layers do not have variables
+			encoded_layer_T = tf.transpose(encoded_layer, [0, 3, 1, 2], name='trans_31')
+			encoded_layer_flat = slim.flatten(encoded_layer_T, scope='flat_32')
 
-			print self.variables_to_restore
-			return encoded_layer
+		self.variables_to_restore = {}
+		for variable in slim.get_variables(sc):
+			layer_suffix = variable.name.split("_")[-1]
+			# print layer_suffix
+			layer_num = int(layer_suffix.split("/")[0])
+			# print layer_num
+			if layer_num > 32:
+				continue
+			# print sc.original_name_scope
+			# print variable.name
+			original_string = '/'.join(variable.name.split("/")[-3:])
+			ckpt_string = original_string[:-2]
+			self.variables_to_restore[ckpt_string] = variable
+
+		print self.variables_to_restore
+		return encoded_layer_flat
 
 
 	def build_rnn(self, rnn_inputs):
@@ -259,8 +270,8 @@ class Pretrained(Model):
 		fc_vars = tf.contrib.framework.get_variables(self.fc_scope)
 		rnn_vars = tf.contrib.framework.get_variables(self.rnn_scope)
 		var_list = fc_vars + rnn_vars
-		optimizer = tf.train.AdamOptimizer(self.params.lr, self.params.beta1, self.params.beta2)
-		self.train_op = decoder_optimizer.minimize(self.loss_op, var_list=var_list)
+		optimizer = tf.train.AdamOptimizer(self.config.lr)
+		self.train_op = optimizer.minimize(self.loss, var_list=var_list)
 
 
 	def add_error_op(self):
