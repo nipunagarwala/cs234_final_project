@@ -5,6 +5,9 @@ import os
 from yolo import YOLONet
 
 
+XAVIER_INIT = tf.contrib.layers.xavier_initializer
+
+
 class PretrainedConfig(Config):
 
 	def __init__(self):
