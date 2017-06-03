@@ -71,8 +71,12 @@ class Pretrained(Model):
 	def build_cnn(self, cur_inputs, reuse=False, scope=None):
 		with tf.variable_scope(scope) as sc:
 			yolo = YOLONet(cur_inputs)
-			encoded_layer_name = '/'.join([scope, 'yolo', 'fc_33'])
+			encoded_layer_name = '/'.join([scope, 'yolo', 'conv_30'])
 			encoded_layer = yolo.end_points[encoded_layer_name]
+
+			# Per YOLO network architecture - these layers do not have variables
+			encoded_layer_T = tf.transpose(encoded_layer, [0, 3, 1, 2], name='trans_31')
+			encoded_layer_flat = slim.flatten(encoded_layer_T, scope='flat_32')
 
 		self.variables_to_restore = {}
 		for variable in slim.get_variables(sc):
@@ -80,7 +84,7 @@ class Pretrained(Model):
 			# print layer_suffix
 			layer_num = int(layer_suffix.split("/")[0])
 			# print layer_num
-			if layer_num > 33:
+			if layer_num > 32:
 				continue
 			# print sc.original_name_scope
 			# print variable.name
@@ -89,7 +93,7 @@ class Pretrained(Model):
 			self.variables_to_restore[ckpt_string] = variable
 
 		print self.variables_to_restore
-		return encoded_layer
+		return encoded_layer_flat
 
 
 	def build_rnn(self, rnn_inputs):
