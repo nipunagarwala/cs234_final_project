@@ -24,7 +24,7 @@ class RecurrentCNNConfig(Config):
 		self.keep_prob = 0.8
 		self.init_state_out_size = 128
 		self.cnn_out_shape = 128
-		self.variance = 1e-1
+		self.variance = 5e-2
 		self.num_samples = 5
 
 
@@ -178,39 +178,41 @@ class RecurrentCNN(Model):
 
 
 	def build_model(self):
-		self.cnn_scope = self.scope + '/CNN'
-		self.fc_scope = self.scope + '/FC'
+		self.cnn_scope = 'CNN'
+		self.fc_scope = 'FC'
+		self.rnn_scope = 'RNN'
+
 		obs_outputs = []
 		reuse = False
-		for t in xrange(self.config.seq_len):
-			print("Current iteration: {0}".format(t))
-			x = tf.placeholder(tf.float32, shape=[None, self.config.init_state_out_size])
-			st_state = tf.zeros_like(x)
-			if t == 0:
-				reuse = False
-				st_state = self.build_initial_state(self.init_loc, reuse, self.fc_scope)
-			if t > 0:
-				# tf.get_variable_scope().reuse_variables()
-				reuse = True
-				st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
+		with tf.variable_scope(self.scope):
+			for t in xrange(self.config.seq_len):
+				print("Current iteration: {0}".format(t))
+				x = tf.placeholder(tf.float32, shape=[None, self.config.init_state_out_size])
+				st_state = tf.zeros_like(x)
+				if t == 0:
+					reuse = False
+					st_state = self.build_initial_state(self.init_loc, reuse, self.fc_scope)
+				if t > 0:
+					# tf.get_variable_scope().reuse_variables()
+					reuse = True
+					st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
 
-			if not self.deeper:
-				concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
-										 axis=1)
-				obs_outputs.append(concat_result)
-			else:
-				concat_result = tf.concat([self.build_deeper_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
-										 axis=1)
-				obs_outputs.append(concat_result)
+				if not self.deeper:
+					concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
+											 axis=1)
+					obs_outputs.append(concat_result)
+				else:
+					concat_result = tf.concat([self.build_deeper_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
+											 axis=1)
+					obs_outputs.append(concat_result)
 
-		obs_outputs = tf.stack(obs_outputs, axis=1)
+			obs_outputs = tf.stack(obs_outputs, axis=1)
 
-		self.rnn_scope = self.scope + '/RNN'
-		rnn_output = None
-		with tf.variable_scope(self.rnn_scope):
-			rnn_output = self.build_rnn(obs_outputs)
+			rnn_output = None
+			with tf.variable_scope(self.rnn_scope):
+				rnn_output = self.build_rnn(obs_outputs)
 
-		self.logits = tf.nn.sigmoid(rnn_output)
+			self.logits = tf.nn.sigmoid(rnn_output)
 		# self.logits = rnn_output
 
 
@@ -378,3 +380,18 @@ class RecurrentCNN(Model):
 
 	def get_config(self):
 		return self.config
+
+	def add_update_weights_op(self, input_model, gamma):
+		q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=input_model.scope)
+		target_q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
+
+		update_ops = []
+		for targ, orig in zip(target_q_vars, q_vars):
+			new_targ = tf.assign(targ, gamma*orig + (1-gamma)*targ)
+			update_ops.append(new_targ)
+
+		self.update_target_op = tf.group(*update_ops)
+
+	def update_weights(self, session):
+		session.run(self.update_target_op)
+

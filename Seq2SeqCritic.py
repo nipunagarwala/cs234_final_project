@@ -34,7 +34,7 @@ class Seq2SeqCritic(Model):
 
 	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=1, reuse=False,
 				add_reg=False, loss_type = 'negative_l1_dist', scope=None):
-		self.config = RecurrentCNNConfig()
+		self.config = Seq2SeqCriticConfig()
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
 		self.reuse = reuse
@@ -135,7 +135,9 @@ class Seq2SeqCritic(Model):
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
-		pred_qt = rewards + tf.reduce_sum(self.pred_loc_placeholder*self.logits, axis=2)
+		pred_qt = rewards + tf.reduce_sum(self.pred_loc_placeholder*self.logits, axis=2, keep_dims=True)
+
+		self.loss_op = tf.reduce_sum(tf.square(self.logits - pred_qt),axis=1, keep_dims=True)
 
 		tf.summary.scalar('Loss', self.loss_op)
 
@@ -144,6 +146,7 @@ class Seq2SeqCritic(Model):
 
 
 	def add_error_op(self):
+		pass
 
 	def add_feed_dict(self, input_batch, target_batch, pred_loc_batch, seq_len_batch, num_encode_batch, num_decode_batch ):
 		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch,
@@ -153,17 +156,50 @@ class Seq2SeqCritic(Model):
 
 	def train_one_batch(self, session, input_batch, target_batch, pred_loc_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch):
+		feed_dict = self.feed_dict( input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+									num_encode_batch, num_decode_batch)
+		_, loss = session.run([self.train_op, self.loss],feed_dict)
+		return loss
 
 
 	def test_one_batch(self, session,input_batch, target_batch, pred_loc_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch):
 
+		feed_dict = self.feed_dict( input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+									num_encode_batch, num_decode_batch)
+		loss = session.run([self.loss],feed_dict)
+		return None
+
 
 	def run_one_batch(self, args, session, input_batch, target_batch, pred_loc_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch):
 
+		if args.train == 'train':
+			loss = self.train_one_batch(session, input_batch, target_batch, pred_loc_batch,
+										 seq_len_batch, num_encode_batch, num_decode_batch)
+		else:
+			loss = self.train_one_batch(session, input_batch, target_batch, pred_loc_batch,
+										 seq_len_batch, num_encode_batch, num_decode_batch)
+		return loss
+
 	def get_config(self):
 		return self.config
+
+	def add_update_weights_op(self, input_model, gamma):
+		q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=input_model.scope)
+		target_q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
+
+		update_ops = []
+		for targ, orig in zip(target_q_vars, q_vars):
+			new_targ = tf.assign(targ,gamma*orig + (1-gamma)*targ)
+			update_ops.append(new_targ)
+
+		self.update_target_op = tf.group(*update_ops)
+
+	def update_weights(self, session):
+		session.run(self.update_target_op)
+
+
 
 
 
