@@ -31,9 +31,11 @@ class YOLONet(object):
         with tf.variable_scope(scope) as sc:
             end_points_collection = sc.name + '_end_points'
             with slim.arg_scope([slim.conv2d, slim.fully_connected],
-                                activation_fn=leaky_relu(alpha),
+                                #activation_fn=leaky_relu(alpha),
+                                activation_fn=tf.nn.relu,
                                 weights_initializer=tf.truncated_normal_initializer(0.0, 0.01),
-                                weights_regularizer=slim.l2_regularizer(0.0005)):
+                                weights_regularizer=slim.l2_regularizer(0.0005),
+                                outputs_collections=end_points_collection):
                 net = tf.pad(inputs_placeholder, np.array([[0, 0], [3, 3], [3, 3], [0, 0]]), name='pad_1')
                 net = slim.conv2d(net, 64, 7, 2, padding='VALID', scope='conv_2')
                 net = slim.max_pool2d(net, 2, padding='SAME', scope='pool_3')
