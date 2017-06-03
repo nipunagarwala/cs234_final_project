@@ -8,8 +8,6 @@ import utils
 import os
 import sys
 import random
-from RecurrentCNN import *
-from VisualAttention import *
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -18,7 +16,7 @@ GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
 BATCH_SIZE = 32
 
 
-def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, epoch_num):
+def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox, saver,  file_writer, epoch_num):
     batch_accuracies = []
     for j in xrange(len(batched_data)):
         data_batch = batched_data[j]
@@ -34,7 +32,7 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
         file_writer.add_summary(summary, j)
 
         # # Record batch accuracies for test code
-        batch_accuracies.append(accuracy)
+        batch_accuracies.append(area_accuracy)
 
     if args.train == "train":
     # Checkpoint model - every epoch
@@ -73,13 +71,19 @@ def run_model(args):
                 print "No checkpoint found for test or validation!"
                 return
 
+        if args.model == "pretrained":
+            init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
+                                model_path='/data/yolo/YOLO_small.ckpt',
+                                var_list=model.variables_to_restore)
+            init_fn(session)
+
         if args.train == 'train':
             for i in xrange(i_stopped, args.num_epochs):
                 print "Running epoch ({0})...".format(i)
 
                 batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
-                run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, i)
-            
+                run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
+                        file_writer, i)
 
 
 def main(_):

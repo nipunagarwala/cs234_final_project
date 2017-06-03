@@ -8,6 +8,7 @@ import re
 from RecurrentCNN import *
 from VisualAttention import *
 from RecurrentVisualAttention import *
+from Pretrained import *
 
 # TODO: change according to data directories
 # TRAIN_DATA = '/data/MOT17/data/train/'
@@ -74,7 +75,7 @@ def parse_command_line():
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
     requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention",
-                         "cnn_pretrain", "seq2seq_critic"], type=str, dest='model', required=True,
+                         "pretrained", "seq2seq_critic"], type=str, dest='model', required=True,
                           help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
     requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
@@ -167,16 +168,21 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
-    elif args.model == 'cnn_pretrain':
-        features_shape = (224, 224, 3) # vot2017
-        num_classes = 1000
+    elif args.model == 'pretrained':
+        eatures_shape = (180, 320, 3) # vot2017
+        num_classes = 4
+        # features_shape = (224, 224, 3) # vot2017
+        # num_classes = 1000
+        seq_len = 8
 
-        model = ImageNetCNN(features_shape,
+        model = Pretrained(features_shape,
                         num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
                         reuse=False,
                         add_bn=False,
                         add_reg=False,
-                        scope="cnn_pretrain")
+                        scope=args.model)
         model.build_model()
         model.add_loss_op()
         model.add_error_op()
