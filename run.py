@@ -63,7 +63,7 @@ def run_model(args):
 		# Val or Test set accuracie
 
         # Make computational graph
-        if args.train == "train":
+        if args.train == "train" and not found_ckpt:
             init_op = tf.global_variables_initializer()
             init_op.run()
         else:

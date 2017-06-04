@@ -182,6 +182,7 @@ def choose_model(args): # pass in necessary model parameters (...)
                         reuse=False,
                         add_bn=False,
                         add_reg=False,
+                        loss_type = 'negative_l1_dist',
                         scope=args.model)
         model.build_model()
         model.add_loss_op()
