@@ -223,7 +223,7 @@ class RecurrentCNN(Model):
 		p_right = self.location_samples[:, :, :, 1] + self.location_samples[:, :, :, 3]
 		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
 		right = tf.minimum(p_right, g_right)
-		p_top = location_samples[:, :, :, 0]
+		p_top = self.location_samples[:, :, :, 0]
 		g_top = self.targets_placeholder[:, :, 0]
 		top = tf.maximum(p_top, g_top)
 		p_bottom = self.location_samples[:, :, :, 0] + self.location_samples[:, :, :, 2]
@@ -237,16 +237,17 @@ class RecurrentCNN(Model):
 		return intersection/union
 
 
-	def add_loss_op(self):
+	def add_loss_op(self, loss_type='negative_l1_dist'):
+		self.loss_type = loss_type
 		logits_shape = tf.shape(self.logits)
 		logits_flat = tf.reshape(self.logits, [-1])
 		location_dist = tf.contrib.distributions.MultivariateNormalDiag(mu=logits_flat,
 									diag_stdev=self.config.variance*tf.ones_like(logits_flat))
 		location_samples = location_dist.sample([self.config.num_samples])
-		self.location_samples = location_samples
 
 		new_logits_shape = tf.concat([[self.config.num_samples,] , logits_shape], axis=0)
 		location_samples = tf.reshape(location_samples, new_logits_shape)
+		self.location_samples = location_samples
 
 		if self.loss_type == 'negative_l1_dist':
 			rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
@@ -289,6 +290,7 @@ class RecurrentCNN(Model):
 		grads = tf.gradients(self.loss, tvars)
 		optimizer = tf.train.AdamOptimizer(self.config.lr)
 		self.train_op = optimizer.apply_gradients(zip(grads, tvars))
+
 
 
 	def add_error_op(self):

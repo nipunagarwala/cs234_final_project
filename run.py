@@ -42,7 +42,41 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
         print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
 
 
-def run_model(args):
+# def run_actor_critic_model(args):
+#     dataset_dir = utils.choose_data(args)
+#     dataset = utils.load_dataset(dataset_dir)
+#     print "Using checkpoint directory: {0}".format(args.ckpt_dir)
+
+#     model = utils.choose_model(args) # pass in necessary model parameters
+#     print "Running {0} model for {1} epochs.".format(args.model, args.num_epochs)
+
+#     global_step = tf.Variable(0, trainable=False, name='global_step')
+#     saver = tf.train.Saver(max_to_keep=args.num_epochs)
+
+#     with tf.Session(config=GPU_CONFIG) as session:
+#         print "Inititialized TF Session!"
+
+#         # Checkpoint
+#         i_stopped, found_ckpt = utils.get_checkpoint(args, session, saver)
+#         # Summary Writer
+#         file_writer = tf.summary.FileWriter(args.ckpt_dir, graph=session.graph, max_queue=10, flush_secs=30)
+#         # Val or Test set accuracie
+
+#         # Make computational graph
+#         if args.train == "train" and not found_ckpt:
+#             init_op = tf.global_variables_initializer()
+#             init_op.run()
+#         else:
+#             if not found_ckpt:
+#                 print "No checkpoint found for test or validation!"
+#                 return
+
+
+
+
+
+
+def run_rnn_rcnn(args):
     dataset_dir = utils.choose_data(args)
     dataset = utils.load_dataset(dataset_dir)
     print "Using checkpoint directory: {0}".format(args.ckpt_dir)
@@ -71,11 +105,16 @@ def run_model(args):
                 print "No checkpoint found for test or validation!"
                 return
 
-        if args.model == "pretrained":
+        if "pretrained" in args.model:
             init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
                                 model_path='/data/yolo/YOLO_small.ckpt',
                                 var_list=model.variables_to_restore)
             init_fn(session)
+
+            if args.model == "pretrained-neg_l1":
+                model.add_loss_op('negative_l1_dist')
+            elif args.model == "pretrained-iou":
+                model.add_loss_op('iou')
 
         if args.train == 'train':
             for i in xrange(i_stopped, args.num_epochs):
@@ -89,7 +128,7 @@ def run_model(args):
 def main(_):
     args = utils.parse_command_line()
     # utils.clear_summaries()
-    run_model(args)
+    run_rnn_rcnn(args)
 
 
 if __name__ == "__main__":

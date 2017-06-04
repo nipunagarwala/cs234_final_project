@@ -74,8 +74,9 @@ def parse_command_line():
     print("Parsing Command Line Arguments...")
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
-    requiredModel.add_argument('-m', choices = ["rnn_rcnn", "rnn_rcnn_cumsum", "visual_attention",
-                         "pretrained", "seq2seq_critic"], type=str, dest='model', required=True,
+    requiredModel.add_argument('-m', choices = ["rnn_rcnn-neg_l1", "rnn_rcnn-iou", "visual_attention",
+                         "pretrained-neg_l1", "pretrained-iou", "seq2seq-pretrain_actor", "seq2seq-pretrain_critic",
+                         "seq2seq_critic-complete"], type=str, dest='model', required=True,
                           help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
     requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
@@ -108,7 +109,7 @@ def choose_data(args):
 def choose_model(args): # pass in necessary model parameters (...)
     is_training = args.train == 'train' # boolean that certain models may require
 
-    if args.model == 'rnn_rcnn':
+    if 'rnn_rcnn' in args.model:
         # features_shape = (240, 384, 3) # MOT17
         features_shape = (180, 320, 3) # vot2017
         num_classes = 4
@@ -168,7 +169,7 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
-    elif args.model == 'pretrained':
+    elif 'pretrained' in args.model:
         features_shape = (180, 320, 3) # vot2017
         num_classes = 4
         # features_shape = (224, 224, 3) # vot2017
@@ -183,7 +184,7 @@ def choose_model(args): # pass in necessary model parameters (...)
                         add_bn=False,
                         add_reg=False,
                         loss_type = 'negative_l1_dist',
-                        scope=args.model)
+                        scope='pretrained')
         model.build_model()
         model.add_loss_op()
         model.add_error_op()
