@@ -3,12 +3,16 @@ import os
 import cPickle as pickle
 import numpy as np
 
-mean_pixel = 128# VOT
+mean_pixel = [ 116.45473115, 112.27971193, 106.51900657] # VOT
 orig_shape = (180, 320)
 # VTB
 
 def generate_images(sequence, predicted_bboxes, true_bboxes, save_path, basename):
     i = 0
+    mean_pixel_array = np.ones_like(sequence[0], dtype='float64')
+    mean_pixel_array[:, :, 0] *= mean_pixel[0]
+    mean_pixel_array[:, :, 1] *= mean_pixel[1]
+    mean_pixel_array[:, :, 2] *= mean_pixel[2]
     for s in sequence:
         img = np.uint8(s + mean_pixel)
         img = Image.fromarray(img)
