@@ -23,7 +23,7 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
         label_batch = batched_labels[j]
         seq_lens_batch = batched_seq_lens[j]
         bbox_batch =  batched_bbox[j]
-
+        # label_batch = np.expand_dims(label_batch, axis=2)
         summary, loss, rewards, area_accuracy = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
         print("Loss of the current batch is {0}".format(loss))
         print("Finished batch {0}/{1}".format(j,len(batched_data)))
@@ -111,10 +111,12 @@ def run_rnn_rcnn(args):
                                 var_list=model.variables_to_restore)
             init_fn(session)
 
-            if args.model == "pretrained-neg_l1":
-                model.add_loss_op('negative_l1_dist')
-            elif args.model == "pretrained-iou":
-                model.add_loss_op('iou')
+        if "neg_l1" in args.model:
+            model.add_loss_op('negative_l1_dist')
+        elif "iou" in args.model:
+            model.add_loss_op('iou')
+
+        # if "pretrained" in args.model:
 
         if args.train == 'train':
             for i in xrange(i_stopped, args.num_epochs):

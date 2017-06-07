@@ -75,7 +75,8 @@ def parse_command_line():
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
     requiredModel.add_argument('-m', choices = ["rnn_rcnn-neg_l1", "rnn_rcnn-iou", "visual_attention",
-                         "pretrained-neg_l1", "pretrained-iou", "seq2seq-pretrain_actor", "seq2seq-pretrain_critic",
+                         "pretrained-neg_l1", "pretrained-iou", "mot_pretrained-neg_l1", "mot_pretrained-iou"
+                         "seq2seq-pretrain_actor", "seq2seq-pretrain_critic",
                          "seq2seq_critic-complete"], type=str, dest='model', required=True,
                           help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
@@ -169,7 +170,7 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
-    elif 'pretrained' in args.model:
+    elif 'pretrained' in args.model and 'mot' not in args.model:
         features_shape = (180, 320, 3) # vot2017
         num_classes = 4
         # features_shape = (224, 224, 3) # vot2017
@@ -190,6 +191,30 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
+    elif 'mot_pretrained' in args.model:
+        features_shape = (240, 384, 3) # vot2017
+        num_classes = 4
+        num_objects = 10
+        # features_shape = (224, 224, 3) # vot2017
+        # num_classes = 1000
+        seq_len = 8
+
+        model = MOTPretrained(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        loss_type = 'negative_l1_dist',
+                        num_objects=num_objects,
+                        scope='mot_pretrained')
+        model.build_model()
+        model.add_loss_op()
+        model.add_error_op()
+        model.add_optimizer_op()
+        model.add_summary_op()
+
     elif args.model == 'other':
         pass
 

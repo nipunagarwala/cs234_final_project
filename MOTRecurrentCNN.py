@@ -7,7 +7,7 @@ import math
 XAVIER_INIT = tf.contrib.layers.xavier_initializer
 
 
-class RecurrentCNNConfig(Config):
+class MOTRecurrentCNNConfig(Config):
 
 	def __init__(self):
 		self.batch_size = 64
@@ -28,24 +28,29 @@ class RecurrentCNNConfig(Config):
 		self.num_samples = 5
 
 
-class RecurrentCNN(Model):
+class MOTRecurrentCNN(Model):
 
 	def __init__(self, features_shape, num_classes, cell_type='lstm', seq_len=8, reuse=False, add_bn=False,
-				add_reg=False, deeper = False, loss_type = 'negative_l1_dist', cum_sum=False, scope='RCNN'):
-		self.config = RecurrentCNNConfig()
+				add_reg=False, deeper = False, loss_type = 'negative_l1_dist', cum_sum=False, 
+				init_loc_size=(4,), num_objects=1, scope='RCNN'):
+
+		self.config = MOTRecurrentCNNConfig()
 		self.config.features_shape = features_shape
 		self.config.num_classes = num_classes
-		self.reuse = reuse
-		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
-		self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,)+ self.config.init_loc_size))
-		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
+		self.config.init_loc_size = init_loc_size
 		self.config.seq_len = seq_len
-		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
+		self.reuse = reuse
 		self.deeper = deeper
 		self.loss_type = loss_type
 		self.cumsum = cum_sum
-
 		self.scope = scope
+		self.num_objects = num_objects
+
+		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
+		self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,self.num_objects)+ self.config.init_loc_size))
+		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None, self.num_objects) + self.config.targets_shape))
+		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
+
 		if add_bn:
 			self.norm_fn = tf.contrib.layers.batch_norm
 		else:
@@ -139,9 +144,9 @@ class RecurrentCNN(Model):
 		return cnn_out
 
 	def build_rnn(self, rnn_inputs):
-		W = tf.get_variable("Weights", shape=[self.config.hidden_size, self.config.num_classes],
-							initializer=XAVIER_INIT(uniform=True))
-		b = tf.get_variable("Bias", shape=[self.config.num_classes])
+		# W = tf.get_variable("Weights", shape=[self.config.hidden_size, self.config.num_classes],
+		# 					initializer=XAVIER_INIT(uniform=True))
+		# b = tf.get_variable("Bias", shape=[self.config.num_classes])
 
 		rnnNet = tf.contrib.rnn.MultiRNNCell([self.cell(num_units = self.config.hidden_size) for _ in
 									range(self.config.num_layers)], state_is_tuple=True)
@@ -149,30 +154,47 @@ class RecurrentCNN(Model):
 		                sequence_length=self.seq_len_placeholder,dtype=tf.float32)
 
 		cur_shape = tf.shape(rnnNet_out)
-		rnnOut_2d = tf.reshape(rnnNet_out, [-1, cur_shape[2]])
+		rnnOut_2d = tf.reshape(rnnNet_out, [-1, self.config.hidden_size])
 
-		logits_2d = tf.matmul(rnnOut_2d, W) + b
-		rnn_out = tf.reshape(logits_2d,[cur_shape[0], cur_shape[1], self.config.num_classes])
+		# logits_2d = tf.matmul(rnnOut_2d, W) + b
+		logits_objects = []
+
+		for i in xrange(self.num_objects):
+			logits_2d = tf.contrib.layers.fully_connected(inputs=rnnOut_2d, num_outputs=self.config.num_classes,
+										activation_fn=tf.nn.relu,
+										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+										scope='logits_out_'+str(i),trainable=True)
+			logits_objects.append(logits_2d)
+
+		logits_objects = tf.stack(logits_objects, axis=2)
+
+		rnn_out = tf.reshape(logits_2d,[cur_shape[0], cur_shape[1],self.num_objects, self.config.num_classes])
 
 		return rnn_out
 
 	def build_initial_state(self, loc_inputs, reuse=False, scope=None):
 		with tf.variable_scope(scope):
-			fc1 = tf.contrib.layers.fully_connected(inputs=loc_inputs, num_outputs=self.config.init_state_out_size,
-									activation_fn=tf.nn.relu,
-									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-									reuse = reuse, scope='fc1', trainable=True)
 
-			fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.init_state_out_size,
-									activation_fn=tf.nn.relu,
-									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-									reuse = reuse,scope='fc2',trainable=True)
+			fc_combined_list = []
 
+			for i in xrange(self.num_objects):
+				fc1 = tf.contrib.layers.fully_connected(inputs=loc_inputs[:,i,:], num_outputs=self.config.init_state_out_size,
+										activation_fn=tf.nn.relu,
+										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+										reuse = reuse, scope='fc1_'+str(i), trainable=True)
 
+				fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.init_state_out_size,
+										activation_fn=tf.nn.relu,
+										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+										reuse = reuse,scope='fc2_'+str(i),trainable=True)
 
-		init_state_out = fc2
+				fc_combined_list.append(fc2)
+
+		init_state_out = tf.stack(fc_combined_list, axis=1)
+		print init_state_out.get_shape().as_list()
 		return init_state_out
 
 
@@ -217,21 +239,21 @@ class RecurrentCNN(Model):
 
 
 	def get_iou_loss(self):
-		p_left = self.location_samples[:, :, :, 1]
-		g_left = self.targets_placeholder[:, :, 1]
+		p_left = self.location_samples[:, :, :, :, 1]
+		g_left = self.targets_placeholder[:, :, :, 1]
 		left = tf.maximum(p_left, g_left)
-		p_right = self.location_samples[:, :, :, 1] + self.location_samples[:, :, :, 3]
-		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		p_right = self.location_samples[:, :, :, :, 1] + self.location_samples[:, :, :, :, 3]
+		g_right = self.targets_placeholder[:, :, :, 1] + self.targets_placeholder[:, :, :, 3]
 		right = tf.minimum(p_right, g_right)
-		p_top = self.location_samples[:, :, :, 0]
-		g_top = self.targets_placeholder[:, :, 0]
+		p_top = self.location_samples[:, :, :, :, 0]
+		g_top = self.targets_placeholder[:, :, :, 0]
 		top = tf.maximum(p_top, g_top)
-		p_bottom = self.location_samples[:, :, :, 0] + self.location_samples[:, :, :, 2]
-		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		p_bottom = self.location_samples[:, :, :, :, 0] + self.location_samples[:, :, :, :, 2]
+		g_bottom = self.targets_placeholder[:, :, :, 0] + self.targets_placeholder[:, :, :, 2]
 		bottom = tf.minimum(p_bottom, g_bottom)
 		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
-		p_area = self.location_samples[:, :, :, 3] * self.location_samples[:, :, :, 2]
-		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		p_area = self.location_samples[:, :, :, :, 3] * self.location_samples[:, :, :, :, 2]
+		g_area = self.targets_placeholder[:, :, :,3] * self.targets_placeholder[:, :, :, 2]
 		union = p_area + g_area - intersection
 
 		return intersection/union
@@ -250,8 +272,8 @@ class RecurrentCNN(Model):
 		self.location_samples = location_samples
 
 		if self.loss_type == 'negative_l1_dist':
-			rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
-					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+			rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=4,keep_dims=True) - \
+					tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=4,keep_dims=True)
 		elif self.loss_type == 'iou':
 			rewards = self.get_iou_loss()
 			rewards = tf.expand_dims(rewards,axis=-1)
@@ -260,9 +282,9 @@ class RecurrentCNN(Model):
 		self.timestep_rewards = timestep_rewards
 
 		if self.cumsum:
-			tot_cum_rewards = tf.cumsum(rewards, axis=2, reverse=True)
+			tot_cum_rewards = tf.cumsum(rewards, axis=3, reverse=True)
 		else:
-			tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
+			tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=3, keep_dims = True),multiples=[1,1,self.config.seq_len, 1, 1])
 		
 		self.tot_cum_rewards = tot_cum_rewards
 
@@ -279,9 +301,9 @@ class RecurrentCNN(Model):
 		density_func = tf.log(const1 * tf.exp(-squared_diff / const2))
 		self.density_func = density_func
 
-		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
-											axis=[1, 0])
-		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=2), axis=1)
+		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=3),
+											axis=[2, 1, 0])
+		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=3), axis=[2,1])
 		tf.summary.scalar('Total Rewards', self.total_rewards[0][0])
 
 
@@ -306,32 +328,32 @@ class RecurrentCNN(Model):
 		# top = y
 		# bottom = y + height
 
-		p_left = self.logits[:, :, 1]
-		g_left = self.targets_placeholder[:, :, 1]
+		p_left = self.logits[:, :, :, 1]
+		g_left = self.targets_placeholder[:, :, :, 1]
 		left = tf.maximum(p_left, g_left)
 		self.left = left
 
-		p_right = self.logits[:, :, 1] + self.logits[:, :, 3]
+		p_right = self.logits[:, :, :, 1] + self.logits[:, :, :, 3]
 		self.p_right = p_right
-		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
+		g_right = self.targets_placeholder[:, :, :, 1] + self.targets_placeholder[:, :, :, 3]
 		self.g_right = g_right
 		right = tf.minimum(p_right, g_right)
 		self.right = right
 
-		p_top = self.logits[:, :, 0]
-		g_top = self.targets_placeholder[:, :, 0]
+		p_top = self.logits[:, :, :, 0]
+		g_top = self.targets_placeholder[:, :, :, 0]
 		top = tf.maximum(p_top, g_top)
 		self.top = top
 
-		p_bottom = self.logits[:, :, 0] + self.logits[:, :, 2]
-		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
+		p_bottom = self.logits[:, :, :, 0] + self.logits[:, :, :, 2]
+		g_bottom = self.targets_placeholder[:, :, :, 0] + self.targets_placeholder[:, :, :, 2]
 		bottom = tf.minimum(p_bottom, g_bottom)
 		self.bottom = bottom
 
 		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
 		self.intersection = intersection
-		p_area = self.logits[:, :, 3] * self.logits[:, :, 2]
-		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
+		p_area = self.logits[:, :, :, 3] * self.logits[:, :, :, 2]
+		g_area = self.targets_placeholder[:, :, :, 3] * self.targets_placeholder[:, :, :, 2]
 		union = p_area + g_area - intersection
 		self.union = union
 
