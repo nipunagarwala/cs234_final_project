@@ -22,7 +22,7 @@ class MOTRecurrentCNNConfig(Config):
 		self.init_loc_size = (4,)
 		self.max_norm = 10
 		self.keep_prob = 0.8
-		self.init_state_out_size = 128
+		self.init_state_out_size = 32
 		self.cnn_out_shape = 128
 		self.variance = 1e-1
 		self.num_samples = 5
@@ -48,7 +48,7 @@ class MOTRecurrentCNN(Model):
 
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
 		self.init_loc = tf.placeholder(tf.float32, shape=tuple((None,self.num_objects)+ self.config.init_loc_size))
-		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None, self.num_objects) + self.config.targets_shape))
+		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,self.num_objects, None) + self.config.targets_shape))
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
 
 		if add_bn:
@@ -167,9 +167,9 @@ class MOTRecurrentCNN(Model):
 										scope='logits_out_'+str(i),trainable=True)
 			logits_objects.append(logits_2d)
 
-		logits_objects = tf.stack(logits_objects, axis=2)
+		logits_objects = tf.stack(logits_objects, axis=1)
 
-		rnn_out = tf.reshape(logits_2d,[cur_shape[0], cur_shape[1],self.num_objects, self.config.num_classes])
+		rnn_out = tf.reshape(logits_2d,[cur_shape[0], self.num_objects, cur_shape[1], self.config.num_classes])
 
 		return rnn_out
 
@@ -193,7 +193,7 @@ class MOTRecurrentCNN(Model):
 
 				fc_combined_list.append(fc2)
 
-		init_state_out = tf.stack(fc_combined_list, axis=1)
+		init_state_out = tf.concat(fc_combined_list, axis=1)
 		print init_state_out.get_shape().as_list()
 		return init_state_out
 
@@ -278,13 +278,17 @@ class MOTRecurrentCNN(Model):
 			rewards = self.get_iou_loss()
 			rewards = tf.expand_dims(rewards,axis=-1)
 
+		print location_samples.get_shape().as_list()
+		print rewards.get_shape().as_list()
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
+
+		print timestep_rewards.get_shape().as_list()
 		self.timestep_rewards = timestep_rewards
 
 		if self.cumsum:
 			tot_cum_rewards = tf.cumsum(rewards, axis=3, reverse=True)
 		else:
-			tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=3, keep_dims = True),multiples=[1,1,self.config.seq_len, 1, 1])
+			tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=3, keep_dims = True),multiples=[1,1,1, self.config.seq_len, 1])
 		
 		self.tot_cum_rewards = tot_cum_rewards
 
