@@ -313,9 +313,7 @@ class RecurrentCNN(Model):
 		self.left = left
 
 		p_right = self.logits[:, :, 1] + self.logits[:, :, 3]
-		self.p_right = p_right
 		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
-		self.g_right = g_right
 		right = tf.minimum(p_right, g_right)
 		self.right = right
 
@@ -340,14 +338,43 @@ class RecurrentCNN(Model):
 		tf.summary.scalar('IOU Area Accuracy', self.area_accuracy)
 
 		# Bounding box summaries
-		# p_bboxes = tf.concat([p_top, p_left, p_bottom, p_right], axis=-1)
-		# g_bboxes = tf.concat([g_top, g_left, g_bottom, g_right], axis=-1)
+		p_seq_image_bboxes = []
+		g_seq_image_bboxes = []
+		for i in xrange(self.config.seq_len):
+			p_left_i = self.logits[:, i, 1]
+			g_left_i = self.targets_placeholder[:, i, 1]
+			p_right_i = self.logits[:, i, 1] + self.logits[:, i, 3]
+			g_right_i = self.targets_placeholder[:, i, 1] + self.targets_placeholder[:, i, 3]
+			p_top_i = self.logits[:, i, 0]
+			g_top_i = self.targets_placeholder[:, i, 0]
+			p_bottom_i = self.logits[:, i, 0] + self.logits[:, i, 2]
+			g_bottom_i = self.targets_placeholder[:, i, 0] + self.targets_placeholder[:, i, 2]
 
-		# p_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, p_bboxes)
-		# g_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, g_bboxes)
+			p_top_i = tf.expand_dims(p_top_i, axis=-1)
+			p_left_i = tf.expand_dims(p_left_i, axis=-1)
+			p_bottom_i = tf.expand_dims(p_bottom_i, axis=-1)
+			p_right_i = tf.expand_dims(p_right_i, axis=-1)
 
-		# bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=2)
-		# tf.summary.image('bounding boxes', bbox_summary)
+			g_top_i = tf.expand_dims(g_top_i, axis=-1)
+			g_left_i = tf.expand_dims(g_left_i, axis=-1)
+			g_bottom_i = tf.expand_dims(g_bottom_i, axis=-1)
+			g_right_i = tf.expand_dims(g_right_i, axis=-1)
+
+			p_bboxes_i = tf.expand_dims(tf.concat([p_top_i, p_left_i, p_bottom_i, p_right_i], axis=-1), axis=1)
+			g_bboxes_i = tf.expand_dims(tf.concat([g_top_i, g_left_i, g_bottom_i, g_right_i], axis=-1), axis=1)
+
+			# squeezed_seq_input = tf.squeeze(self.inputs_placeholder[:, i, :, :, :], axis=1)
+			# print p_bboxes_i.get_shape().as_list()
+			# print g_bboxes_i.get_shape().as_list()
+			p_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder[:, i, :, :, :], p_bboxes_i)
+			g_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder[:, i, :, :, :], g_bboxes_i)
+			p_seq_image_bboxes.append(p_image_bboxes)
+			g_seq_image_bboxes.append(g_image_bboxes)
+
+		p_image_bboxes = tf.concat(p_seq_image_bboxes, axis=2)
+		g_image_bboxes = tf.concat(g_seq_image_bboxes, axis=2)
+		bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=1)
+		tf.summary.image('bounding boxes', bbox_summary)
 
 
 	def add_summary_op(self):
