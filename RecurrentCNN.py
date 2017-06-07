@@ -263,7 +263,7 @@ class RecurrentCNN(Model):
 			tot_cum_rewards = tf.cumsum(rewards, axis=2, reverse=True)
 		else:
 			tot_cum_rewards = tf.tile(tf.reduce_sum(rewards, axis=2, keep_dims = True),multiples=[1,1,self.config.seq_len, 1])
-		
+
 		self.tot_cum_rewards = tot_cum_rewards
 
 		timestep_rewards_grad_op = tf.stop_gradient(timestep_rewards)
@@ -306,6 +306,7 @@ class RecurrentCNN(Model):
 		# top = y
 		# bottom = y + height
 
+		# IoU Metric calculation
 		p_left = self.logits[:, :, 1]
 		g_left = self.targets_placeholder[:, :, 1]
 		left = tf.maximum(p_left, g_left)
@@ -337,6 +338,16 @@ class RecurrentCNN(Model):
 
 		self.area_accuracy = tf.reduce_mean(intersection / union)
 		tf.summary.scalar('IOU Area Accuracy', self.area_accuracy)
+
+		# Bounding box summaries
+		p_bboxes = tf.concat([p_top, p_left, p_bottom, p_right], axis=-1)
+		g_bboxes = tf.concat([g_top, g_left, g_bottom, g_right], axis=-1)
+
+		p_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, p_bboxes)
+		g_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, g_bboxes)
+
+		bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=2)
+		tf.summary.image('bounding boxes', bbox_summary)
 
 
 	def add_summary_op(self):
@@ -397,4 +408,3 @@ class RecurrentCNN(Model):
 
 	def update_weights(self, session):
 		session.run(self.update_target_op)
-
