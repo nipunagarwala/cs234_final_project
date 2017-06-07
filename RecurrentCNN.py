@@ -352,24 +352,25 @@ class RecurrentCNN(Model):
 	def train_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, seq_len_batch , init_locations_batch)
 
-		_, loss, density_func, total_rewards, area_accuracy = session.run([
+		_, loss, summary, density_func, total_rewards, area_accuracy = session.run([
 				self.train_op,
 				self.loss,
+				self.summary_op,
 				self.density_func,
 				self.total_rewards[0][0],
 				self.area_accuracy],
 				feed_dict)
 
 
-		return None, loss, total_rewards, area_accuracy
+		return summary, loss, total_rewards, area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
 		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
-		loss, rewards, area_accuracy = session.run([self.loss, self.total_rewards, self.area_accuracy], feed_dict)
+		loss, summary, rewards, area_accuracy = session.run([self.loss, self.summary_op, self.total_rewards, self.area_accuracy], feed_dict)
 
-		return None, loss, rewards, area_accuracy
+		return summary, loss, rewards, area_accuracy
 
 
 	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch , init_locations_batch):

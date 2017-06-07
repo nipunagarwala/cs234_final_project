@@ -249,7 +249,8 @@ def make_batches(dataset, batch_size=32):
         batched_data.append(np.asarray(data[batch_start : batch_start + batch_size]))
         batched_labels.append(np.asarray(labels[batch_start : batch_start + batch_size]))
         batched_seq_lens.append(np.asarray(seq_lens[batch_start : batch_start + batch_size]))
-        bboxes = [seq[0][0:4] for seq in labels[batch_start : batch_start + batch_size]]
+        bboxes = [[object[0][0:4] for object in seq] for seq in labels[batch_start : batch_start + batch_size]]
+        # bboxes = [seq[0][0:4] for seq in labels[batch_start : batch_start + batch_size]]
         batched_bbox.append(np.asarray(bboxes))
     return batched_data, batched_labels, batched_seq_lens, batched_bbox
 
