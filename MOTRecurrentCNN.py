@@ -206,6 +206,7 @@ class MOTRecurrentCNN(Model):
 
 		obs_outputs = []
 		reuse = False
+		zero_vec = tf.zeros_like(self.init_loc)
 		with tf.variable_scope(self.scope):
 			for t in xrange(self.config.seq_len):
 				print("Current iteration: {0}".format(t))
@@ -217,7 +218,7 @@ class MOTRecurrentCNN(Model):
 				if t > 0:
 					# tf.get_variable_scope().reuse_variables()
 					reuse = True
-					st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
+					st_state = self.build_initial_state(zero_vec , reuse, self.fc_scope)
 
 				if not self.deeper:
 					concat_result = tf.concat([self.build_cnn(self.inputs_placeholder[:,t,:,:,:], reuse, self.cnn_scope),st_state],
@@ -306,7 +307,7 @@ class MOTRecurrentCNN(Model):
 		self.density_func = density_func
 
 		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=3),
-											axis=[2, 1, 0])
+											axis=[1, 0])
 		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=3), axis=[2,1])
 		tf.summary.scalar('Total Rewards', self.total_rewards[0][0])
 
@@ -382,7 +383,7 @@ class MOTRecurrentCNN(Model):
 				self.train_op,
 				self.loss,
 				self.density_func,
-				self.total_rewards[0][0],
+				self.total_rewards,
 				self.area_accuracy],
 				feed_dict)
 
