@@ -13,7 +13,7 @@ import random
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
 GPU_CONFIG.gpu_options.allocator_type = 'BFC'
-GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.6
+GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.4
 BATCH_SIZE = 16
 
 
