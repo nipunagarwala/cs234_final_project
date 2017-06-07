@@ -12,8 +12,9 @@ import random
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
-GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
-BATCH_SIZE = 32
+GPU_CONFIG.gpu_options.allocator_type = 'BFC'
+GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.6
+BATCH_SIZE = 16
 
 
 def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox, saver,  file_writer, epoch_num):
@@ -78,7 +79,8 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
 
 def run_rnn_rcnn(args):
     dataset_dir = utils.choose_data(args)
-    dataset = utils.load_dataset(dataset_dir)
+    with tf.device('/cpu:0'):
+        dataset = utils.load_dataset(dataset_dir)
     print "Using checkpoint directory: {0}".format(args.ckpt_dir)
 
     model = utils.choose_model(args) # pass in necessary model parameters
@@ -122,9 +124,17 @@ def run_rnn_rcnn(args):
             for i in xrange(i_stopped, args.num_epochs):
                 print "Running epoch ({0})...".format(i)
 
-                batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
+                with tf.device('/cpu:0'):
+                    batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
+
                 run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
                         file_writer, i)
+
+        if args.train == 'test':
+            batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
+            run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
+                        file_writer, i)
+
 
 
 def main(_):

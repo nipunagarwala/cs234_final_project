@@ -22,7 +22,7 @@ class MOTRecurrentCNNConfig(Config):
 		self.init_loc_size = (4,)
 		self.max_norm = 10
 		self.keep_prob = 0.8
-		self.init_state_out_size = 32
+		self.init_state_out_size = 16
 		self.cnn_out_shape = 128
 		self.variance = 1e-1
 		self.num_samples = 5
@@ -169,7 +169,7 @@ class MOTRecurrentCNN(Model):
 
 		logits_objects = tf.stack(logits_objects, axis=1)
 
-		rnn_out = tf.reshape(logits_2d,[cur_shape[0], self.num_objects, cur_shape[1], self.config.num_classes])
+		rnn_out = tf.reshape(logits_objects,[cur_shape[0], self.num_objects, cur_shape[1], self.config.num_classes])
 
 		return rnn_out
 
