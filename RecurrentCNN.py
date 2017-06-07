@@ -340,14 +340,14 @@ class RecurrentCNN(Model):
 		tf.summary.scalar('IOU Area Accuracy', self.area_accuracy)
 
 		# Bounding box summaries
-		p_bboxes = tf.concat([p_top, p_left, p_bottom, p_right], axis=-1)
-		g_bboxes = tf.concat([g_top, g_left, g_bottom, g_right], axis=-1)
+		# p_bboxes = tf.concat([p_top, p_left, p_bottom, p_right], axis=-1)
+		# g_bboxes = tf.concat([g_top, g_left, g_bottom, g_right], axis=-1)
 
-		p_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, p_bboxes)
-		g_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, g_bboxes)
+		# p_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, p_bboxes)
+		# g_image_bboxes = tf.image.draw_bounding_boxes(self.inputs_placeholder, g_bboxes)
 
-		bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=2)
-		tf.summary.image('bounding boxes', bbox_summary)
+		# bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=2)
+		# tf.summary.image('bounding boxes', bbox_summary)
 
 
 	def add_summary_op(self):

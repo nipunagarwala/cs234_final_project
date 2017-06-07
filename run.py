@@ -25,6 +25,7 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
         seq_lens_batch = batched_seq_lens[j]
         bbox_batch =  batched_bbox[j]
 
+        label_batch = np.expand_dims(label_batch, axis=1)
         summary, loss, rewards, area_accuracy = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
         print("Loss of the current batch is {0}".format(loss))
         print("Finished batch {0}/{1}".format(j,len(batched_data)))
