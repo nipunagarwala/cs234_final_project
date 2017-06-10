@@ -9,7 +9,7 @@ SINGLE_OBJECT = True
 
 def construct_train_sequences(path, output_path, seq_len=8):
     train_path = os.path.join(path, "train")
-    train_output_dir = os.path.join(output_path, 'data', 'train')
+    train_output_dir = os.path.join(output_path, 'train')
     if not os.path.exists(train_output_dir):
         os.makedirs(train_output_dir)
     construct_sequence(train_path, train_output_dir, seq_len)
