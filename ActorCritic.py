@@ -152,7 +152,8 @@ class ActorCritic(object):
 		actor_feed_dict = self.actor.add_feed_dict(input_batch, target_batch, seq_len_batch, 
 										init_locations_batch)
 		actor_out = session.run([self.actor.get_outputs()], feed_dict=actor_feed_dict)
-		return self.critic.run_one_batch(args, session, actor_out, target_batch, seq_len_batch, 
+
+		return self.critic.run_one_batch(args, session, actor_out[0], target_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch)
 
 

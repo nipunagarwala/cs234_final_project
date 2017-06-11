@@ -22,7 +22,7 @@ class MOTRecurrentCNNConfig(Config):
 		self.init_loc_size = (4,)
 		self.max_norm = 10
 		self.keep_prob = 0.8
-		self.init_state_out_size = 16
+		self.init_state_out_size = 128
 		self.cnn_out_shape = 128
 		self.variance = 3e-1
 		self.num_samples = 5
@@ -154,17 +154,21 @@ class MOTRecurrentCNN(Model):
 		                sequence_length=self.seq_len_placeholder,dtype=tf.float32)
 
 		cur_shape = tf.shape(rnnNet_out)
-		rnnOut_2d = tf.reshape(rnnNet_out, [-1, self.config.hidden_size])
+		rnnOut_2d = tf.reshape(rnnNet_out, [-1, cur_shape[2]])
 
 		# logits_2d = tf.matmul(rnnOut_2d, W) + b
 		logits_objects = []
 
 		for i in xrange(self.num_objects):
-			logits_2d = tf.contrib.layers.fully_connected(inputs=rnnOut_2d, num_outputs=self.config.num_classes,
-										activation_fn=tf.nn.relu,
-										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
-										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-										scope='logits_out_'+str(i),trainable=True)
+			W = tf.get_variable("Weights_"+ str(i), shape=[self.config.hidden_size, self.config.num_classes],
+								initializer=XAVIER_INIT(uniform=True))
+			b = tf.get_variable("Bias_" + str(i), shape=[self.config.num_classes])
+			logits_2d = tf.matmul(rnnOut_2d, W) + b
+			# logits_2d = tf.contrib.layers.fully_connected(inputs=rnnOut_2d, num_outputs=self.config.num_classes,
+			# 							activation_fn=tf.nn.relu,
+			# 							normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+			# 							weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
+			# 							scope='logits_out_'+str(i),trainable=True)
 			logits_objects.append(logits_2d)
 
 		logits_objects = tf.stack(logits_objects, axis=1)
