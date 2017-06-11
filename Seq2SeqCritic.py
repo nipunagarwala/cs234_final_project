@@ -25,8 +25,6 @@ class Seq2SeqCriticConfig(Config):
 		self.cnn_out_shape = 128
 		self.variance = 1e-2
 		self.attention_option = "luong"
-		self.start_encode = start_encode
-		self.end_encode = end_encode
 		# self.bidirectional = False
 
 
@@ -80,7 +78,6 @@ class Seq2SeqCritic(Model):
 			def output_fn(outputs):
 					return tf.contrib.layers.linear(outputs, 1, scope=scope)
 
-			self.loss_weights = tf.ones([self.config.batch_size, self.input_size], dtype=tf.float32, name="loss_weights")
 			encoder_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_attention for _ in
 										range(self.config.num_layers)], state_is_tuple=True)
 			decoder_multi = tf.contrib.rnn.MultiRNNCell([self.decoder_cell(num_units = self.config.hidden_size) for _ in
@@ -89,19 +86,25 @@ class Seq2SeqCritic(Model):
 			self.encoder_outputs, self.encoder_state = tf.nn.dynamic_rnn(cell=encoder_multi, inputs=self.inputs_placeholder,
 								  sequence_length=self.seq_len_placeholder,time_major=True, dtype=tf.float32) #initial_state=initial_tuple)
 			
+
+			rnn_tuple_state = tuple([tf.contrib.rnn.LSTMStateTuple(self.encoder_state[idx][0][0], self.encoder_state[idx][0][1])
+     							for idx in xrange(self.config.num_layers)])
+
+			print rnn_tuple_state
+			# print rnn_tuple_state.get_shape().as_list()
 			self.decoder_outputs, self.decoder_state = tf.nn.dynamic_rnn(cell=decoder_multi, inputs=self.targets_placeholder,
 								  sequence_length=self.seq_len_placeholder,time_major=True, dtype=tf.float32,
-								  initial_state=encoder_multi_state)
+								  initial_state=rnn_tuple_state )
 			
 			cur_shape = tf.shape(self.decoder_outputs)
-			rnnOut_2d = tf.reshape(self.decoder_outputs, [-1, cur_shape[2]])
+			rnnOut_2d = tf.reshape(self.decoder_outputs, [-1,  self.config.hidden_size])
 
 			fc_out = tf.contrib.layers.fully_connected(inputs=rnnOut_2d, num_outputs=self.config.num_classes,
 									activation_fn=tf.nn.relu,
-									normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
+									normalizer_fn=None,	weights_initializer=XAVIER_INIT(uniform=True) ,
 									weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
 									scope='fc1', trainable=True)
-			self.logits = tf.reshape(logits_2d,[cur_shape[0], cur_shape[1], self.config.num_classes])	
+			self.logits = tf.reshape(fc_out,[cur_shape[0], cur_shape[1], self.config.num_classes])	
 
 	def get_iou_loss(self):
 		p_left = self.inputs_placeholder[:, :, 1]

@@ -45,7 +45,7 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
         print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
 
 
-def run_actor_critic_model(args, model, session, dataset, file_writer, epoch_num):
+def run_actor_critic_model(args, model, session, dataset, file_writer, saver, epoch_num):
     with tf.device('/cpu:0'):
         batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
 
@@ -63,6 +63,7 @@ def run_actor_critic_model(args, model, session, dataset, file_writer, epoch_num
             print("Finished batch {0}/{1}".format(j,len(batched_data)))
             print("Total rewards: {0}".format(rewards))
             print("Average area accuracy per sequence per batch: {0}".format(area_accuracy))
+            batch_accuracies.append(area_accuracy)
         if 'critic' in args.model:
             summary, loss = model.run_pretrain_critic_batch(args, session, data_batch, 
                                                 label_batch, seq_lens_batch, bbox_batch, seq_lens_batch, seq_lens_batch)
@@ -74,7 +75,7 @@ def run_actor_critic_model(args, model, session, dataset, file_writer, epoch_num
         file_writer.add_summary(summary, j)
 
         # # Record batch accuracies for test code
-        batch_accuracies.append(area_accuracy)
+       
 
     if args.train == "train":
     # Checkpoint model - every epoch
@@ -114,14 +115,15 @@ def setup_actor_critic_model(args):
                 print "No checkpoint found for test or validation!"
                 return
 
-            init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
-                                model_path='/data/yolo/YOLO_small.ckpt',
-                                var_list=model.variables_to_restore)
-            init_fn(session)
+        model.load_yolo(session)
+        # init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
+        #                     model_path='/data/yolo/YOLO_small.ckpt',
+        #                     var_list=model.variables_to_restore)
+        # init_fn(session)
 
-            if args.train == 'train':
-                for i in xrange(i_stopped, args.num_epochs):
-                    run_actor_critic_model(args, model, session, dataset, file_writer, i)
+        if args.train == 'train':
+            for i in xrange(i_stopped, args.num_epochs):
+                run_actor_critic_model(args, model, session, dataset, file_writer, saver, i)
 
 
 

@@ -35,10 +35,12 @@ class RecurrentCNNActor(Pretrained):
 		location_samples = tf.reshape(location_samples, new_logits_shape)
 		self.location_samples = location_samples
 
+		# print self.location_samples.get_shape().as_list()
+
 		if pretrain:
 			if self.loss_type == 'negative_l1_dist':
-				rewards = -tf.reduce_mean(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
-						tf.reduce_max(tf.abs(location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
+				rewards = -tf.reduce_mean(tf.abs(self.location_samples - tf.cast(self.targets_placeholder,tf.float32)),axis=3,keep_dims=True) - \
+						tf.reduce_max(tf.abs(self.location_samples - tf.cast(self.targets_placeholder,tf.float32)), axis=3,keep_dims=True)
 			elif self.loss_type == 'iou':
 				rewards = self.get_iou_loss()
 				rewards = tf.expand_dims(rewards,axis=-1)
@@ -126,6 +128,16 @@ class ActorCritic(object):
 	def build_pretrain_actor(self,loss_type='negative_l1_dist', pretrain=False):
 		self.actor.add_loss_op(loss_type, pretrain)
 		self.actor.add_summary_op()
+
+	def load_yolo(self, session):
+		init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
+                            model_path='/data/yolo/YOLO_small.ckpt',
+                            var_list=self.actor.variables_to_restore)
+		init_fn(session)
+		init_fn = tf.contrib.framework.assign_from_checkpoint_fn(
+		                    model_path='/data/yolo/YOLO_small.ckpt',
+		                    var_list=self.actor_target.variables_to_restore)
+		init_fn(session)
 
 	# def build_pretrain_critic(self):
 

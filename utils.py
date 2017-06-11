@@ -234,7 +234,8 @@ def choose_model(args): # pass in necessary model parameters (...)
                         loss_type = 'negative_l1_dist',
                         scope='pretrained_actor')
         actor_model.build_model()
-        actor_model.add_loss_op()
+        actor_model.add_loss_op( loss_type='negative_l1_dist', 
+                            pretrain=True)
         actor_model.add_error_op()
         actor_model.add_optimizer_op()
         actor_model.add_summary_op()
@@ -249,7 +250,8 @@ def choose_model(args): # pass in necessary model parameters (...)
                         loss_type = 'negative_l1_dist',
                         scope='pretrained_actor_target')
         actor_target_model.build_model()
-        actor_target_model.add_loss_op()
+        actor_target_model.add_loss_op(loss_type='negative_l1_dist', 
+                            pretrain=True)
         actor_target_model.add_error_op()
         actor_target_model.add_optimizer_op()
         actor_target_model.add_summary_op()
@@ -261,7 +263,6 @@ def choose_model(args): # pass in necessary model parameters (...)
                         cell_type='lstm',
                         seq_len=seq_len,
                         reuse=False,
-                        add_bn=False,
                         add_reg=False,
                         loss_type =  'iou',
                         scope='critic')
@@ -277,7 +278,6 @@ def choose_model(args): # pass in necessary model parameters (...)
                         cell_type='lstm',
                         seq_len=seq_len,
                         reuse=False,
-                        add_bn=False,
                         add_reg=False,
                         loss_type = 'iou',
                         scope='critic_target')
@@ -292,9 +292,9 @@ def choose_model(args): # pass in necessary model parameters (...)
                                 critic_model,
                                 actor_target_model,
                                 critic_target_model)
-        actor_critic_model.build_pretrain_actor(
-                            loss_type='negative_l1_dist',
-                            pretrain=True)
+        # actor_critic_model.build_pretrain_actor(
+        #                     loss_type='negative_l1_dist',
+        #                     pretrain=True)
 
         return actor_critic_model
 
