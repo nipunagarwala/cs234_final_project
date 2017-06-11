@@ -188,9 +188,9 @@ def run_rnn_rcnn(args):
                 rewards, accuracies = run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
                         file_writer, i)
                 with open(reward_output_file, "a") as reward_file:
-                    reward_file.write("\n".join([r.astype('|S6') for r in rewards]))
+                    reward_file.write("\n".join([r.astype('|S6') for r in rewards]) + "\n")
                 with open(accuracy_output_file, "a") as accuracy_file:
-                    accuracy_file.write("\n".join([a.astype('|S6') for a in accuracies]))
+                    accuracy_file.write("\n".join([a.astype('|S6') for a in accuracies]) + "\n")
         if args.train == 'test':
             model.add_error_op(add_bbox = True)
             model.add_summary_op()
