@@ -44,6 +44,7 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
         test_accuracy = np.mean(batch_accuracies)
         print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
 
+
 def run_actor_critic_model(args, model, session, dataset, file_writer, epoch_num):
     with tf.device('/cpu:0'):
         batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
@@ -65,7 +66,7 @@ def run_actor_critic_model(args, model, session, dataset, file_writer, epoch_num
         if 'critic' in args.model:
             summary, loss = model.run_pretrain_critic_batch(args, session, data_batch, 
                                                 label_batch, seq_lens_batch, bbox_batch, seq_lens_batch, seq_lens_batch)
-             print("Loss of the current batch is {0}".format(loss))
+            print("Loss of the current batch is {0}".format(loss))
 
         # if 'complete' in args.model:
             
@@ -193,8 +194,10 @@ def run_rnn_rcnn(args):
 def main(_):
     args = utils.parse_command_line()
     # utils.clear_summaries()
-    run_rnn_rcnn(args)
-    setup_actor_critic_model(args)
+    if 'seq2seq' not in args.model:
+        run_rnn_rcnn(args)
+    else:
+        setup_actor_critic_model(args)
 
 
 if __name__ == "__main__":

@@ -77,7 +77,7 @@ def parse_command_line():
     requiredModel = parser.add_argument_group('Required Model arguments')
     # TODO: add other model names
     requiredModel.add_argument('-m', choices = ["rnn_rcnn-neg_l1", "rnn_rcnn-iou", "visual_attention",
-                         "pretrained-neg_l1", "pretrained-iou", "mot_pretrained-neg_l1", "mot_pretrained-iou"
+                         "pretrained-neg_l1", "pretrained-iou", "mot_pretrained-neg_l1", "mot_pretrained-iou",
                          "seq2seq-actor", "seq2seq-critic",
                          "seq2seq-complete"], type=str, dest='model', required=True,
                           help='Type of model to run')
@@ -224,8 +224,8 @@ def choose_model(args): # pass in necessary model parameters (...)
         # features_shape = (224, 224, 3) # vot2017
         # num_classes = 1000
         seq_len = 8
-        actor_model = RecurrentCNNActor(features_shape,
-                        num_classes,
+        actor_model = RecurrentCNNActor(features_shape = features_shape,
+                        num_classes = num_classes,
                         cell_type='lstm',
                         seq_len=seq_len,
                         reuse=False,
@@ -239,8 +239,8 @@ def choose_model(args): # pass in necessary model parameters (...)
         actor_model.add_optimizer_op()
         actor_model.add_summary_op()
 
-        actor_target_model = RecurrentCNNActor(features_shape,
-                        num_classes,
+        actor_target_model = RecurrentCNNActor(features_shape = features_shape,
+                        num_classes = num_classes,
                         cell_type='lstm',
                         seq_len=seq_len,
                         reuse=False,

@@ -14,7 +14,7 @@ class RecurrentCNNActor(Pretrained):
 
 	def __init__(self, *args, **kwargs):
 
-		super(RecurrentCNN, self).__init__(**kwargs)
+		super(Pretrained, self).__init__(*args, **kwargs)
 		self.qvalues_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 
 	def get_outputs(self):
