@@ -24,7 +24,7 @@ class MOTRecurrentCNNConfig(Config):
 		self.keep_prob = 0.8
 		self.init_state_out_size = 16
 		self.cnn_out_shape = 128
-		self.variance = 1e-1
+		self.variance = 3e-1
 		self.num_samples = 5
 
 
@@ -179,17 +179,18 @@ class MOTRecurrentCNN(Model):
 			fc_combined_list = []
 
 			for i in xrange(self.num_objects):
+				should_reuse = reuse or (i > 0)
 				fc1 = tf.contrib.layers.fully_connected(inputs=loc_inputs[:,i,:], num_outputs=self.config.init_state_out_size,
 										activation_fn=tf.nn.relu,
 										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
 										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-										reuse = reuse, scope='fc1_'+str(i), trainable=True)
+										reuse = should_reuse, scope='fc1_'+str(i), trainable=True)
 
 				fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.init_state_out_size,
 										activation_fn=tf.nn.relu,
 										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
 										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-										reuse = reuse,scope='fc2_'+str(i),trainable=True)
+										reuse = should_reuse,scope='fc2_'+str(i),trainable=True)
 
 				fc_combined_list.append(fc2)
 
@@ -389,7 +390,7 @@ class MOTRecurrentCNN(Model):
 				feed_dict)
 
 
-		return summary, loss, total_rewards, area_accuracy
+		return summary, loss, total_rewards[0][0], area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):

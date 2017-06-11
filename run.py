@@ -10,7 +10,7 @@ import sys
 import random
 
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
 GPU_CONFIG.gpu_options.allocator_type = 'BFC'
 GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.4
@@ -18,15 +18,20 @@ BATCH_SIZE = 16
 
 
 def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox, saver,  file_writer, epoch_num):
+    batch_rewards = []
     batch_accuracies = []
     for j in xrange(len(batched_data)):
         data_batch = batched_data[j]
+        #label_batch = np.squeeze(batched_labels[j])
         label_batch = batched_labels[j]
+
         seq_lens_batch = batched_seq_lens[j]
+        #bbox_batch =  np.squeeze(batched_bbox[j])
         bbox_batch =  batched_bbox[j]
 
         # label_batch = np.expand_dims(label_batch, axis=1)
         # bbox_batch = np.expand_dims(bbox_batch, axis=1)
+
         summary, loss, rewards, area_accuracy = model.run_one_batch(args, session, data_batch, label_batch, seq_lens_batch, bbox_batch)
         print("Loss of the current batch is {0}".format(loss))
         print("Finished batch {0}/{1}".format(j,len(batched_data)))
@@ -36,13 +41,15 @@ def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_le
 
         # # Record batch accuracies for test code
         batch_accuracies.append(area_accuracy)
-
+        batch_rewards.append(rewards)
     if args.train == "train":
     # Checkpoint model - every epoch
         utils.save_checkpoint(args, session, saver, epoch_num)
     else: # val or test
         test_accuracy = np.mean(batch_accuracies)
         print "Model {0} accuracy: {1}".format(args.train, test_accuracy)
+        
+    return batch_rewards, batch_accuracies
 
 
 def run_actor_critic_model(args, model, session, dataset, file_writer, saver, epoch_num):
@@ -126,17 +133,14 @@ def setup_actor_critic_model(args):
                 run_actor_critic_model(args, model, session, dataset, file_writer, saver, i)
 
 
-
-
-
-
-
 def run_rnn_rcnn(args):
     dataset_dir = utils.choose_data(args)
     with tf.device('/cpu:0'):
         dataset = utils.load_dataset(dataset_dir)
     print "Using checkpoint directory: {0}".format(args.ckpt_dir)
-
+    reward_output_file = os.path.join(args.ckpt_dir, "rewards")
+    accuracy_output_file = os.path.join(args.ckpt_dir, "accuracies")
+    
     model = utils.choose_model(args) # pass in necessary model parameters
     print "Running {0} model for {1} epochs.".format(args.model, args.num_epochs)
 
@@ -181,9 +185,12 @@ def run_rnn_rcnn(args):
                 with tf.device('/cpu:0'):
                     batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
 
-                run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
+                rewards, accuracies = run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
                         file_writer, i)
-
+                with open(reward_output_file, "a") as reward_file:
+                    reward_file.write("\n".join([r.astype('|S6') for r in rewards]))
+                with open(accuracy_output_file, "a") as accuracy_file:
+                    accuracy_file.write("\n".join([a.astype('|S6') for a in accuracies]))
         if args.train == 'test':
             model.add_error_op(add_bbox = True)
             model.add_summary_op()

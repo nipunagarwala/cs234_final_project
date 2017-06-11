@@ -291,7 +291,9 @@ class RecurrentCNN(Model):
 		optimizer = tf.train.AdamOptimizer(self.config.lr)
 		self.train_op = optimizer.apply_gradients(zip(grads, tvars))
 
-	def add_error_op(self, add_bbox = False):
+
+
+	def add_error_op(self):
 		# VOT metrics (MOT only makes sense for multiple object)
  		# Accuracy:
 		# intersection / union
@@ -336,9 +338,6 @@ class RecurrentCNN(Model):
 		tf.summary.scalar('IOU Area Accuracy', self.area_accuracy)
 
 		# Bounding box summaries
-		if not add_bbox:
-			return
-
 		p_seq_image_bboxes = []
 		g_seq_image_bboxes = []
 		for i in xrange(self.config.seq_len):
@@ -375,7 +374,7 @@ class RecurrentCNN(Model):
 		p_image_bboxes = tf.concat(p_seq_image_bboxes, axis=2)
 		g_image_bboxes = tf.concat(g_seq_image_bboxes, axis=2)
 		bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=1)
-		tf.summary.image('bounding boxes', bbox_summary)
+		tf.summary.image('bounding boxes', bbox_summary, max_outputs=10)
 
 
 	def add_summary_op(self):
@@ -401,11 +400,11 @@ class RecurrentCNN(Model):
 				feed_dict)
 
 
-		return summary, loss, total_rewards, area_accuracy
+		return summary, loss, total_rewards[0][0], area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
-		feed_dict = self.add_feed_dict(input_batch, target_batch,seq_len_batch , init_locations_batch)
+		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
 		# Accuracy
 		loss, summary, rewards, area_accuracy = session.run([self.loss, self.summary_op, self.total_rewards, self.area_accuracy], feed_dict)
 

@@ -112,7 +112,7 @@ def preprocess_labels(path):
                         norm_top = top / seq_height + height_pad
                         norm_width = width / seq_width
                         norm_height = height / seq_height
-                        norm_dim = [norm_left, norm_top, norm_width, norm_height]
+                        norm_dim = [norm_top, norm_left, norm_height, norm_width]
                         new_line = split_line[:2] + [format(x, "0.6f") for x in norm_dim] + split_line[6:]
                         new_line = ",".join(new_line)
                         frame_to_labels[split_line[0]] += new_line
