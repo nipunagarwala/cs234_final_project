@@ -184,13 +184,13 @@ class MOTRecurrentCNN(Model):
 										activation_fn=tf.nn.relu,
 										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
 										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-										reuse = should_reuse, scope='fc1_'+str(i), trainable=True)
+										reuse = should_reuse, scope='fc1', trainable=True)
 
 				fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=self.config.init_state_out_size,
 										activation_fn=tf.nn.relu,
 										normalizer_fn=self.norm_fn,	weights_initializer=XAVIER_INIT(uniform=True) ,
 										weights_regularizer=self.reg_fn , biases_regularizer=self.reg_fn ,
-										reuse = should_reuse,scope='fc2_'+str(i),trainable=True)
+										reuse = should_reuse,scope='fc2',trainable=True)
 
 				fc_combined_list.append(fc2)
 

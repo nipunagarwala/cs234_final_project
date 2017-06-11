@@ -160,18 +160,18 @@ class Seq2SeqCritic(Model):
 
 	def train_one_batch(self, session, input_batch, target_batch,  seq_len_batch, 
 								num_encode_batch, num_decode_batch):
-		feed_dict = self.feed_dict( input_batch, target_batch, seq_len_batch, 
+		feed_dict = self.add_feed_dict( input_batch, target_batch, seq_len_batch, 
 									num_encode_batch, num_decode_batch)
-		_, loss, summary = session.run([self.train_op, self.loss, self.summary_op],feed_dict)
+		_, loss, summary = session.run([self.train_op, self.loss_op, self.summary_op],feed_dict)
 		return loss, summary
 
 
 	def test_one_batch(self, session,input_batch, target_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch):
 
-		feed_dict = self.feed_dict( input_batch, target_batch, seq_len_batch, 
+		feed_dict = self.add_feed_dict( input_batch, target_batch, seq_len_batch, 
 									num_encode_batch, num_decode_batch)
-		loss = session.run([self.loss, self.summary_op],feed_dict)
+		loss = session.run([self.loss_op, self.summary_op],feed_dict)
 		return loss, summary
 
 

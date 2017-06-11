@@ -151,7 +151,7 @@ class ActorCritic(object):
 								 num_encode_batch, num_decode_batch):
 		actor_feed_dict = self.actor.add_feed_dict(input_batch, target_batch, seq_len_batch, 
 										init_locations_batch)
-		actor_out = session.run([self.actor.get_outputs], feed_dict=actor_feed_dict)
+		actor_out = session.run([self.actor.get_outputs()], feed_dict=actor_feed_dict)
 		return self.critic.run_one_batch(args, session, actor_out, target_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch)
 
@@ -160,11 +160,11 @@ class ActorCritic(object):
 									init_locations_batch):
 		target_actor_feed_dict = self.actor_target.add_feed_dict(input_batch, target_batch, seq_len_batch, 
 														init_locations_batch)
-		target_actor_out = session.run([self.actor_target.get_outputs], feed_dict=target_actor_feed_dict)
+		target_actor_out = session.run([self.actor_target.get_outputs()], feed_dict=target_actor_feed_dict)
 
 		target_critic_feed_dict = self.actor_target.add_feed_dict(input_batch, target_batch, seq_len_batch, 
 														init_locations_batch)
-		critic_outputs = session.run([self.critic_target.get_outputs], feed_dict=target_critic_feed_dict)
+		critic_outputs = session.run([self.critic_target.get_outputs()], feed_dict=target_critic_feed_dict)
 		
 
 
