@@ -9,6 +9,8 @@ from RecurrentCNN import *
 from VisualAttention import *
 from RecurrentVisualAttention import *
 from Pretrained import *
+from Seq2SeqCritic import *
+from ActorCritic import *
 
 # TODO: change according to data directories
 # TRAIN_DATA = '/data/MOT17/data/train/'
@@ -76,8 +78,8 @@ def parse_command_line():
     # TODO: add other model names
     requiredModel.add_argument('-m', choices = ["rnn_rcnn-neg_l1", "rnn_rcnn-iou", "visual_attention",
                          "pretrained-neg_l1", "pretrained-iou", "mot_pretrained-neg_l1", "mot_pretrained-iou"
-                         "seq2seq-pretrain_actor", "seq2seq-pretrain_critic",
-                         "seq2seq_critic-complete"], type=str, dest='model', required=True,
+                         "seq2seq-actor", "seq2seq-critic",
+                         "seq2seq-complete"], type=str, dest='model', required=True,
                           help='Type of model to run')
     requiredTrain = parser.add_argument_group('Required Train/Test arguments')
     requiredTrain.add_argument('-p', choices = ["train", "val", "test"], type=str, # inference mode?
@@ -214,6 +216,87 @@ def choose_model(args): # pass in necessary model parameters (...)
         model.add_error_op()
         model.add_optimizer_op()
         model.add_summary_op()
+
+    elif 'seq2seq' in args.model:
+        features_shape = (180, 320, 3) # vot2017
+        num_classes = 4
+        num_objects = 1
+        # features_shape = (224, 224, 3) # vot2017
+        # num_classes = 1000
+        seq_len = 8
+        actor_model = RecurrentCNNActor(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        loss_type = 'negative_l1_dist',
+                        scope='pretrained_actor')
+        actor_model.build_model()
+        actor_model.add_loss_op()
+        actor_model.add_error_op()
+        actor_model.add_optimizer_op()
+        actor_model.add_summary_op()
+
+        actor_target_model = RecurrentCNNActor(features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        loss_type = 'negative_l1_dist',
+                        scope='pretrained_actor_target')
+        actor_target_model.build_model()
+        actor_target_model.add_loss_op()
+        actor_target_model.add_error_op()
+        actor_target_model.add_optimizer_op()
+        actor_target_model.add_summary_op()
+
+        critic_features_shape = (4,)
+        critic_model = Seq2SeqCritic(
+                        critic_features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        loss_type =  'iou',
+                        scope='critic')
+        critic_model.build_model()
+        critic_model.add_loss_op()
+        critic_model.add_error_op()
+        critic_model.add_optimizer_op()
+        critic_model.add_summary_op()
+
+        critic_target_model = Seq2SeqCritic(
+                        critic_features_shape,
+                        num_classes,
+                        cell_type='lstm',
+                        seq_len=seq_len,
+                        reuse=False,
+                        add_bn=False,
+                        add_reg=False,
+                        loss_type = 'iou',
+                        scope='critic_target')
+        critic_target_model.build_model()
+        critic_target_model.add_loss_op()
+        critic_target_model.add_error_op()
+        critic_target_model.add_optimizer_op()
+        critic_target_model.add_summary_op()
+
+        actor_critic_model = ActorCritic(
+                                actor_model,
+                                critic_model,
+                                actor_target_model,
+                                critic_target_model)
+        actor_critic_model.build_pretrain_actor(
+                            loss_type='negative_l1_dist',
+                            pretrain=True)
+
+        return actor_critic_model
 
     elif args.model == 'other':
         pass
