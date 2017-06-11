@@ -282,7 +282,7 @@ class RecurrentCNN(Model):
 		self.loss = tf.reduce_mean(tf.reduce_sum(density_func*(tot_cum_rewards_op - timestep_rewards_grad_op), axis=2),
 											axis=[1, 0])
 		self.total_rewards = tf.reduce_mean(tf.reduce_sum(timestep_rewards, axis=2), axis=1)
-		tf.summary.scalar('Total Rewards', self.total_rewards)
+		tf.summary.scalar('Total Rewards', self.total_rewards[0][0])
 
 
 	def add_optimizer_op(self):
@@ -395,7 +395,7 @@ class RecurrentCNN(Model):
 				self.loss,
 				self.summary_op,
 				self.density_func,
-				self.total_rewards[0][0],
+				self.total_rewards,
 				self.area_accuracy],
 				feed_dict)
 
