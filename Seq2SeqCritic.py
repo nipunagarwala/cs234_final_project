@@ -41,7 +41,6 @@ class Seq2SeqCritic(Model):
 		self.input_size = tuple((None,None,)+ self.config.features_shape )
 		self.inputs_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,)+ self.config.features_shape ))
 		self.targets_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
-		self.pred_loc_placeholder = tf.placeholder(tf.float32, shape=tuple((None,None,) + self.config.targets_shape))
 
 		self.config.seq_len = seq_len
 		self.seq_len_placeholder = tf.placeholder(tf.int32, shape=tuple((None,) ))
@@ -105,20 +104,20 @@ class Seq2SeqCritic(Model):
 			self.logits = tf.reshape(logits_2d,[cur_shape[0], cur_shape[1], self.config.num_classes])	
 
 	def get_iou_loss(self):
-		p_left = self.pred_loc_placeholder[:, :, :, 1]
+		p_left = self.inputs_placeholder[:, :, 1]
 		g_left = self.targets_placeholder[:, :, 1]
 		left = tf.maximum(p_left, g_left)
-		p_right = self.pred_loc_placeholder[:, :, :, 1] + self.pred_loc_placeholder[:, :, :, 3]
+		p_right = self.inputs_placeholder[:, :, 1] + self.inputs_placeholder[:, :, 3]
 		g_right = self.targets_placeholder[:, :, 1] + self.targets_placeholder[:, :, 3]
 		right = tf.minimum(p_right, g_right)
-		p_top = self.pred_loc_placeholder[:, :, :, 0]
+		p_top = self.inputs_placeholder[:, :, 0]
 		g_top = self.targets_placeholder[:, :, 0]
 		top = tf.maximum(p_top, g_top)
-		p_bottom = self.pred_loc_placeholder[:, :, :, 0] + self.pred_loc_placeholder[:, :, :, 2]
+		p_bottom = self.inputs_placeholder[:, :, 0] + self.inputs_placeholder[:, :, 2]
 		g_bottom = self.targets_placeholder[:, :, 0] + self.targets_placeholder[:, :, 2]
 		bottom = tf.minimum(p_bottom, g_bottom)
 		intersection = tf.maximum((right - left), 0) * tf.maximum((bottom - top), 0)
-		p_area = self.pred_loc_placeholder[:, :, :, 3] * self.pred_loc_placeholder[:, :, :, 2]
+		p_area = self.inputs_placeholder[:, :, 3] * self.inputs_placeholder[ :, :, 2]
 		g_area = self.targets_placeholder[:, :, 3] * self.targets_placeholder[:, :, 2]
 		union = p_area + g_area - intersection
 
@@ -135,7 +134,7 @@ class Seq2SeqCritic(Model):
 
 		timestep_rewards = tf.reduce_mean(rewards, axis=0, keep_dims=True)
 
-		pred_qt = rewards + tf.reduce_sum(self.pred_loc_placeholder*self.logits, axis=2, keep_dims=True)
+		pred_qt = rewards + tf.reduce_sum(self.inputs_placeholder*self.logits, axis=2, keep_dims=True)
 
 		self.loss_op = tf.reduce_sum(tf.square(self.logits - pred_qt),axis=1, keep_dims=True)
 
@@ -144,43 +143,45 @@ class Seq2SeqCritic(Model):
 	def add_optimizer_op(self):
 		self.train_op = tf.train.AdamOptimizer().minimize(self.loss_op)
 
+	def add_summary_op(self):
+		self.summary_op = tf.summary.merge_all()
 
 	def add_error_op(self):
 		pass
 
-	def add_feed_dict(self, input_batch, target_batch, pred_loc_batch, seq_len_batch, num_encode_batch, num_decode_batch ):
+	def add_feed_dict(self, input_batch, target_batch, seq_len_batch, num_encode_batch, num_decode_batch ):
 		feed_dict = {self.inputs_placeholder:input_batch, self.targets_placeholder:target_batch,
-						self.pred_loc_placeholder:pred_loc_batch ,self.seq_len_placeholder:seq_len_batch, 
+						self.seq_len_placeholder:seq_len_batch, 
 						self.num_encode:num_encode_batch , self.num_decode:num_decode_batch }
 		return feed_dict
 
-	def train_one_batch(self, session, input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+	def train_one_batch(self, session, input_batch, target_batch,  seq_len_batch, 
 								num_encode_batch, num_decode_batch):
-		feed_dict = self.feed_dict( input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+		feed_dict = self.feed_dict( input_batch, target_batch, seq_len_batch, 
 									num_encode_batch, num_decode_batch)
-		_, loss = session.run([self.train_op, self.loss],feed_dict)
-		return loss
+		_, loss, summary = session.run([self.train_op, self.loss, self.summary_op],feed_dict)
+		return loss, summary
 
 
-	def test_one_batch(self, session,input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+	def test_one_batch(self, session,input_batch, target_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch):
 
-		feed_dict = self.feed_dict( input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+		feed_dict = self.feed_dict( input_batch, target_batch, seq_len_batch, 
 									num_encode_batch, num_decode_batch)
-		loss = session.run([self.loss],feed_dict)
-		return None
+		loss = session.run([self.loss, self.summary_op],feed_dict)
+		return loss, summary
 
 
-	def run_one_batch(self, args, session, input_batch, target_batch, pred_loc_batch, seq_len_batch, 
+	def run_one_batch(self, args, session, input_batch, target_batch, seq_len_batch, 
 								num_encode_batch, num_decode_batch):
 
 		if args.train == 'train':
-			loss = self.train_one_batch(session, input_batch, target_batch, pred_loc_batch,
+			loss, summary = self.train_one_batch(session, input_batch, target_batch,
 										 seq_len_batch, num_encode_batch, num_decode_batch)
 		else:
-			loss = self.train_one_batch(session, input_batch, target_batch, pred_loc_batch,
+			loss, summary = self.train_one_batch(session, input_batch, target_batch,
 										 seq_len_batch, num_encode_batch, num_decode_batch)
-		return loss
+		return loss, summary
 
 	def get_config(self):
 		return self.config

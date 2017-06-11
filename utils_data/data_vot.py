@@ -6,7 +6,7 @@ from collections import defaultdict
 import random
 
 def construct_sequences(path, output_path, seq_len=8):
-    train_output_dir = os.path.join(output_path, 'data', 'train')
+    train_output_dir = os.path.join(output_path, 'train')
     if not os.path.exists(train_output_dir):
         os.makedirs(train_output_dir)
     construct_sequence(path, train_output_dir, seq_len)
@@ -25,7 +25,7 @@ def construct_sequence(input_path, output, seq_len):
                 img = np.load(img_path)
                 curr_seq.append(img)
                 curr_labels.append(labels[j-1])
-            curr_dataset = (curr_seq, curr_labels, len(curr_seq))
+            curr_dataset = (curr_seq, [curr_labels], len(curr_seq))
             curr_output = os.path.join(output, dirname + "-" + str(i).zfill(8))
             with open(curr_output, "wb") as f:
                 pickle.dump(curr_dataset, f)

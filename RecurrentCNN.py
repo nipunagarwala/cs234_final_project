@@ -374,7 +374,7 @@ class RecurrentCNN(Model):
 		p_image_bboxes = tf.concat(p_seq_image_bboxes, axis=2)
 		g_image_bboxes = tf.concat(g_seq_image_bboxes, axis=2)
 		bbox_summary = tf.concat([p_image_bboxes, g_image_bboxes], axis=1)
-		tf.summary.image('bounding boxes', bbox_summary)
+		tf.summary.image('bounding boxes', bbox_summary, max_outputs=10)
 
 
 	def add_summary_op(self):
@@ -395,12 +395,12 @@ class RecurrentCNN(Model):
 				self.loss,
 				self.summary_op,
 				self.density_func,
-				self.total_rewards[0][0],
+				self.total_rewards,
 				self.area_accuracy],
 				feed_dict)
 
 
-		return summary, loss, total_rewards, area_accuracy
+		return summary, loss, total_rewards[0][0], area_accuracy
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
