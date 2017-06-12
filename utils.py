@@ -196,7 +196,7 @@ def choose_model(args): # pass in necessary model parameters (...)
     elif 'mot_pretrained' in args.model:
         features_shape = (240, 384, 3) # vot2017
         num_classes = 4
-        num_objects = 2
+        num_objects = 1
         # features_shape = (224, 224, 3) # vot2017
         # num_classes = 1000
         seq_len = 8

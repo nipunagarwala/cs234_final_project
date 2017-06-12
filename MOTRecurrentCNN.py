@@ -24,7 +24,7 @@ class MOTRecurrentCNNConfig(Config):
 		self.keep_prob = 0.8
 		self.init_state_out_size = 128
 		self.cnn_out_shape = 128
-		self.variance = 1e-1
+		self.variance = 3e-1
 		self.num_samples = 5
 
 
@@ -435,7 +435,7 @@ class MOTRecurrentCNN(Model):
 
 
 	def test_one_batch(self, session, input_batch, target_batch, seq_len_batch , init_locations_batch):
-		feed_dict = self.add_feed_dict(input_batch, target_batch, init_locations)
+		feed_dict = self.add_feed_dict(input_batch, target_batch,seq_len_batch , init_locations_batch)
 		# Accuracy
 		loss, summary, rewards, area_accuracy = session.run([self.loss, self.summary_op,self.total_rewards, self.area_accuracy], feed_dict)
 

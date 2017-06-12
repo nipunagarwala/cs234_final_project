@@ -10,11 +10,11 @@ import sys
 import random
 
 
-#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 GPU_CONFIG = tf.ConfigProto()
 GPU_CONFIG.gpu_options.allocator_type = 'BFC'
 GPU_CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.4
-BATCH_SIZE = 16
+BATCH_SIZE = 15
 
 
 def run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox, saver,  file_writer, epoch_num):
@@ -175,6 +175,7 @@ def run_rnn_rcnn(args):
             model.add_loss_op('negative_l1_dist')
         elif "iou" in args.model:
             model.add_loss_op('iou')
+            model.add_summary_op()
 
         # if "pretrained" in args.model:
 
@@ -192,8 +193,8 @@ def run_rnn_rcnn(args):
                 with open(accuracy_output_file, "a") as accuracy_file:
                     accuracy_file.write("\n".join([a.astype('|S6') for a in accuracies]) + "\n")
         if args.train == 'test':
-            model.add_error_op(add_bbox = True)
-            model.add_summary_op()
+            # model.add_error_op()
+            # model.add_summary_op()
             batched_data, batched_labels, batched_seq_lens,  batched_bbox = utils.make_batches(dataset, batch_size=BATCH_SIZE)
             run_epoch(args, model, session, batched_data, batched_labels, batched_seq_lens,  batched_bbox,saver, 
                         file_writer, 1)

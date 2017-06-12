@@ -191,7 +191,7 @@ class RecurrentCNN(Model):
 				st_state = tf.zeros_like(x)
 				if t == 0:
 					reuse = False
-					st_state = self.build_initial_state(self.init_loc, reuse, self.fc_scope)
+					st_state = self.build_initial_state(tf.zeros_like(self.init_loc), reuse, self.fc_scope)
 				if t > 0:
 					# tf.get_variable_scope().reuse_variables()
 					reuse = True
